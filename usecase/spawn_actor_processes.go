@@ -17,9 +17,9 @@ import (
 
 // TODO move these to Config
 const (
-	blockDurationAvg               float64 = 5.0  // Avg block duration in seconds
-	correctionFactor               float64 = 0.75 // Correction factor for the time estimation
-	SUBMISSION_WINDOWS_TO_BE_CLOSE int64   = 2
+	blockDurationAvg                         float64 = 5.0  // Avg block duration in seconds
+	correctionFactor                         float64 = 0.75 // Correction factor for the time estimation
+	SUBMISSION_WINDOWS_TO_BE_NEAR_NEW_WINDOW int64   = 2
 )
 
 func (suite *UseCaseSuite) Spawn() {
@@ -146,7 +146,7 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 	// Get epoch length and worker submission window static info
 	epochLength := topicInfo.EpochLength
 	workerSubmissionWindow := topicInfo.WorkerSubmissionWindow
-	minBlocksToCheck := workerSubmissionWindow * SUBMISSION_WINDOWS_TO_BE_CLOSE
+	minBlocksToCheck := workerSubmissionWindow * SUBMISSION_WINDOWS_TO_BE_NEAR_NEW_WINDOW
 
 	// Last nonce successfully sent tx for
 	latestNonceHeightSentTxFor := int64(0)
