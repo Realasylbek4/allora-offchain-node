@@ -18,7 +18,7 @@ func (node *NodeConfig) GetLatestOpenWorkerNonceByTopicId(topicId emissionstypes
 	}
 
 	if len(res.Nonces.Nonces) == 0 {
-		return &emissionstypes.Nonce{}, err
+		return &emissionstypes.Nonce{}, nil
 	}
 	// Per `AddWorkerNonce()` in `allora-chain/x/emissions/keeper.go`, the latest nonce is first
 	return res.Nonces.Nonces[0], nil

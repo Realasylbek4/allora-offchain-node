@@ -2,10 +2,24 @@ package usecase
 
 import (
 	"allora_offchain_node/lib"
+	"context"
+	"errors"
+	"math"
 	"sync"
+	"time"
 
+	errorsmod "cosmossdk.io/errors"
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
+	"github.com/cosmos/cosmos-sdk/types/query"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/exp/rand"
+)
+
+// TODO move these to Config
+const (
+	blockDurationAvg               float64 = 5.0  // Avg block duration in seconds
+	correctionFactor               float64 = 0.75 // Correction factor for the time estimation
+	SUBMISSION_WINDOWS_TO_BE_CLOSE int64   = 2
 )
 
 func (suite *UseCaseSuite) Spawn() {
@@ -47,6 +61,64 @@ func (suite *UseCaseSuite) Spawn() {
 	wg.Wait()
 }
 
+// Attempts to build and commit a worker payload for a given nonce
+func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestNonceHeightActedUpon int64) (int64, error) {
+	// latestOpenWorkerNonce, err := suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
+	latestOpenWorkerNonce, err := lib.QueryDataWithRetry(
+		context.Background(),
+		suite.Node.Wallet.MaxRetries,
+		time.Duration(suite.Node.Wallet.RetryDelay)*time.Second,
+		func(ctx context.Context, req query.PageRequest) (*emissionstypes.Nonce, error) {
+			return suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
+		},
+		query.PageRequest{}, // Empty page request as GetLatestOpenWorkerNonceByTopicId doesn't use pagination
+	)
+
+	if err != nil {
+		log.Warn().Err(err).Uint64("topicId", worker.TopicId).Msg("Error getting latest open worker nonce on topic - node availability issue?")
+		return latestNonceHeightActedUpon, err
+	}
+
+	if latestOpenWorkerNonce.BlockHeight > latestNonceHeightActedUpon {
+		log.Debug().Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).
+			Msg("Building and committing worker payload for topic")
+
+		err := suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce)
+		if err != nil {
+			return latestNonceHeightActedUpon, errorsmod.Wrapf(err, "error building and committing worker payload for topic")
+		}
+		return latestOpenWorkerNonce.BlockHeight, nil
+	} else {
+		log.Debug().Uint64("topicId", worker.TopicId).
+			Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).
+			Int64("latestNonceHeightActedUpon", latestNonceHeightActedUpon).Msg("No new worker nonce found")
+		return latestNonceHeightActedUpon, nil
+	}
+}
+
+// Calculate the time distance based on the distance until the next epoch
+func calculateTimeDistanceInSeconds(distanceUntilNextEpoch int64, blockDurationAvg, correctionFactor float64) (int64, error) {
+	if distanceUntilNextEpoch < 0 || correctionFactor < 0 {
+		return 0, errors.New("distanceUntilNextEpoch and correctionFactor must be positive")
+	}
+	correctedTimeDistance := float64(distanceUntilNextEpoch) * blockDurationAvg * correctionFactor
+	return int64(math.Round(correctedTimeDistance)), nil
+}
+
+func generateFairOffset(workerSubmissionWindow int64) int64 {
+	// Ensure the random number generator is seeded
+	source := rand.NewSource(uint64(time.Now().UnixNano()))
+	rng := rand.New(source)
+
+	// Calculate the center of the window
+	center := workerSubmissionWindow / 2
+
+	// Generate a random number between -maxOffset and +maxOffset
+	offset := rng.Int63n(center + 1)
+
+	return offset
+}
+
 func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 	log.Info().Uint64("topicId", worker.TopicId).Msg("Running worker process for topic")
 
@@ -55,26 +127,129 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 		log.Error().Uint64("topicId", worker.TopicId).Msg("Failed to register worker for topic")
 		return
 	}
+	log.Debug().Uint64("topicId", worker.TopicId).Msg("Worker registered")
 
-	latestNonceHeightActedUpon := int64(0)
+	topicInfo, err := lib.QueryDataWithRetry(
+		context.Background(),
+		suite.Node.Wallet.MaxRetries,
+		time.Duration(suite.Node.Wallet.RetryDelay)*time.Second,
+		func(ctx context.Context, req query.PageRequest) (*emissionstypes.Topic, error) {
+			return suite.Node.GetTopicInfo(worker.TopicId)
+		},
+		query.PageRequest{}, // Empty page request as GetTopicInfo doesn't use pagination
+	)
+	if err != nil {
+		log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Failed to get topic info after retries")
+		return
+	}
+
+	// Get epoch length and worker submission window static info
+	epochLength := topicInfo.EpochLength
+	workerSubmissionWindow := topicInfo.WorkerSubmissionWindow
+	minBlocksToCheck := workerSubmissionWindow * SUBMISSION_WINDOWS_TO_BE_CLOSE
+
+	// Last nonce successfully sent tx for
+	latestNonceHeightSentTxFor := int64(0)
+
+	// Keep this to estimate block duration
+	var currentBlockHeight int64
+
 	for {
-		latestOpenWorkerNonce, err := suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
+		// Query the latest block
+		status, err := suite.Node.Chain.Client.Status(context.Background())
 		if err != nil {
-			log.Warn().Err(err).Uint64("topicId", worker.TopicId).Msg("Error getting latest open worker nonce on topic - node availability issue?")
-		} else {
-			if latestOpenWorkerNonce.BlockHeight > latestNonceHeightActedUpon {
-				log.Debug().Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).Msg("Building and committing worker payload for topic")
+			log.Error().Err(err).Msg("Failed to get status")
+			suite.Wait(1)
+			continue
+		}
+		currentBlockHeight = status.SyncInfo.LatestBlockHeight
 
-				err := suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce)
-				if err != nil {
-					log.Error().Err(err).Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).Msg("Error building and committing worker payload for topic")
-				}
-				latestNonceHeightActedUpon = latestOpenWorkerNonce.BlockHeight
+		topicInfo, err := lib.QueryDataWithRetry(
+			context.Background(),
+			suite.Node.Wallet.MaxRetries,
+			time.Duration(suite.Node.Wallet.RetryDelay)*time.Second,
+			func(ctx context.Context, req query.PageRequest) (*emissionstypes.Topic, error) {
+				return suite.Node.GetTopicInfo(worker.TopicId)
+			},
+			query.PageRequest{}, // Empty page request as GetTopicInfo doesn't use pagination
+		)
+		if err != nil {
+			log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error getting topic info")
+			return
+		}
+		log.Debug().Int64("currentBlockHeight", currentBlockHeight).
+			Int64("EpochLastEnded", topicInfo.EpochLastEnded).
+			Int64("EpochLength", epochLength).
+			Msg("Info from topic")
+		epochLastEnded := topicInfo.EpochLastEnded
+		epochEnd := epochLastEnded + epochLength
+
+		// Check if block is within the epoch submission window
+		if currentBlockHeight-epochLastEnded <= workerSubmissionWindow {
+			// Attempt to submit worker payload
+			latestNonceHeightSentTxFor, err = suite.processWorkerPayload(worker, latestNonceHeightSentTxFor)
+			if err != nil {
+				log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error processing worker payload - could not complete transaction")
 			} else {
-				log.Debug().Uint64("topicId", worker.TopicId).Msg("No new worker nonce found")
+				log.Debug().Uint64("topicId", worker.TopicId).Msg("Successfully sent worker payload")
+			}
+			// Wait until the epoch submission window opens
+			distanceUntilNextEpoch := epochEnd - currentBlockHeight
+			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(distanceUntilNextEpoch, blockDurationAvg, correctionFactor)
+			if err != nil {
+				log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error calculating time distance to next epoch after sending tx")
+				return
+			}
+			log.Debug().Uint64("topicId", worker.TopicId).
+				Int64("currentBlockHeight", currentBlockHeight).
+				Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
+				Int64("correctedTimeDistanceInSeconds", correctedTimeDistanceInSeconds).
+				Msg("Waiting until the epoch submission window opens")
+			suite.Wait(correctedTimeDistanceInSeconds)
+		} else if currentBlockHeight > epochEnd {
+			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(epochLength, blockDurationAvg, 1.0)
+			if err != nil {
+				log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("epochLength and correctionFactor must be positive")
+				return
+			}
+			log.Warn().Uint64("topicId", worker.TopicId).Msg("Current block height is greater than next epoch length, inactive topic? Waiting one epoch length")
+			suite.Wait(correctedTimeDistanceInSeconds)
+		} else {
+			// Check distance until next epoch
+			distanceUntilNextEpoch := epochEnd - currentBlockHeight
+
+			if distanceUntilNextEpoch <= minBlocksToCheck {
+				// Wait until the center of the epoch submission window
+				offset := generateFairOffset(workerSubmissionWindow)
+				closeBlockDistance := distanceUntilNextEpoch + offset
+				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(closeBlockDistance, blockDurationAvg, 1.0)
+				if err != nil {
+					log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error calculating close distance to epochLength")
+					return
+				}
+				log.Debug().Uint64("topicId", worker.TopicId).
+					Int64("offset", offset).
+					Int64("currentBlockHeight", currentBlockHeight).
+					Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
+					Int64("closeBlockDistance", closeBlockDistance).
+					Int64("correctedTimeDistanceInSeconds", correctedTimeDistanceInSeconds).
+					Msg("Close to the window, waiting until next epoch submission window")
+				suite.Wait(correctedTimeDistanceInSeconds)
+			} else {
+				// Wait until the epoch submission window opens
+				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(distanceUntilNextEpoch, blockDurationAvg, correctionFactor)
+				if err != nil {
+					log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error calculating far distance to epochLength")
+					return
+				}
+				log.Debug().Uint64("topicId", worker.TopicId).
+					Int64("currentBlockHeight", currentBlockHeight).
+					Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
+					Int64("correctedTimeDistanceInSeconds", correctedTimeDistanceInSeconds).
+					Msg("Waiting until the epoch submission window opens")
+				suite.Wait(correctedTimeDistanceInSeconds)
 			}
 		}
-		suite.Wait(worker.LoopSeconds)
 	}
 }
 
