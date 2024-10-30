@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* [#74](https://github.com/allora-network/allora-offchain-node/pull/74) Improve logging
+
 ### Security
 
 
