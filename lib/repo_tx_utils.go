@@ -31,7 +31,7 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 		txResponse, err := node.Chain.Client.BroadcastTx(ctx, node.Chain.Account, req)
 		txResp = &txResponse
 		if err == nil {
-			log.Debug().Str("msg", infoMsg).Str("txHash", txResp.TxHash).Msg("Success")
+			log.Info().Str("msg", infoMsg).Str("txHash", txResp.TxHash).Msg("Success")
 			return txResp, nil
 		}
 
