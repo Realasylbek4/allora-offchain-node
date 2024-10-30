@@ -16,6 +16,8 @@ type WalletConfig struct {
 	AlloraHomeDir             string  // home directory for the allora keystore
 	Gas                       string  // gas to use for the allora client
 	GasAdjustment             float64 // gas adjustment to use for the allora client
+	GasPrices                 float64 // gas prices to use for the allora client - 0 for no fees
+	MaxFees                   uint64  // max gas to use for the allora client
 	NodeRpc                   string  // rpc node for allora chain
 	MaxRetries                int64   // retry to get data from chain up to this many times per query or tx
 	RetryDelay                int64   // number of seconds to wait between retries (general case)

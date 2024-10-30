@@ -2,6 +2,8 @@ package lib
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"regexp"
 	"strconv"
@@ -16,27 +18,54 @@ import (
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
 )
 
-const ERROR_MESSAGE_EMA_ALREADY_SENT = "cannot update EMA"
+const ERROR_MESSAGE_EMA_ALREADY_SENT = "already submitted"
 const ERROR_MESSAGE_TX_INCLUDED_IN_BLOCK = "waiting for next block"
 const ERROR_MESSAGE_ACCOUNT_SEQUENCE_MISMATCH = "account sequence mismatch"
 const ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER = "error code:"
+const EXCESS_FEES_CORRECTION = 20000
 
-// SendDataWithRetry attempts to send data with a uniform backoff strategy for retries.
-// uniform backoff is preferred to avoid exiting the open submission windows
+// SendDataWithRetry attempts to send data, handling retries, with fee awareness.
+// Custom handling for different errors.
 func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg, infoMsg string) (*cosmosclient.Response, error) {
 	var txResp *cosmosclient.Response
-	var err error
 	var hadEOFTxError bool
+	// Excess fees correction factor in fees
+	excessFactorFees := float64(EXCESS_FEES_CORRECTION) * node.Wallet.GasPrices
+
 	for retryCount := int64(0); retryCount <= node.Wallet.MaxRetries; retryCount++ {
-		txResponse, err := node.Chain.Client.BroadcastTx(ctx, node.Chain.Account, req)
-		txResp = &txResponse
-		if err == nil {
-			log.Info().Str("msg", infoMsg).Str("txHash", txResp.TxHash).Msg("Success")
-			return txResp, nil
+
+		txOptions := cosmosclient.TxOptions{}
+		txService, err := node.Chain.Client.CreateTxWithOptions(ctx, node.Chain.Account, txOptions, req)
+		if err != nil {
+			return nil, err
 		}
 
+		if node.Wallet.GasPrices > 0 {
+			// Precalculate fees
+			fees := uint64(float64(txService.Gas()+EXCESS_FEES_CORRECTION) * node.Wallet.GasPrices)
+			// Add excess fees correction factor to increase with each retry
+			fees = fees + uint64(float64(retryCount+1)*excessFactorFees)
+			// Limit fees to maxFees
+			if fees > node.Wallet.MaxFees {
+				log.Warn().Uint64("gas", txService.Gas()).Uint64("limit", node.Wallet.MaxFees).Msg("Gas limit exceeded, using maxFees instead")
+				fees = node.Wallet.MaxFees
+			}
+			txOptions := cosmosclient.TxOptions{
+				Fees: fmt.Sprintf("%duallo", fees),
+			}
+			log.Info().Str("fees", txOptions.Fees).Msg("Attempting tx with calculated fees")
+			txService, err = node.Chain.Client.CreateTxWithOptions(ctx, node.Chain.Account, txOptions, req)
+			if err != nil {
+				return nil, err
+			}
+		}
+		txResponse, err := txService.Broadcast(ctx)
+		if err == nil {
+			log.Info().Str("msg", infoMsg).Str("txHash", txResponse.TxHash).Msg("Success")
+			return txResp, nil
+		}
+		txResp = &txResponse
 		if strings.Contains(err.Error(), ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER) {
-			// Parse ABCI numerical error code
 			re := regexp.MustCompile(`error code: '(\d+)'`)
 			matches := re.FindStringSubmatch(err.Error())
 			if len(matches) == 2 {
@@ -46,16 +75,24 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				} else {
 					switch errorCode {
 					case int(sdkerrors.ErrMempoolIsFull.ABCICode()):
-						// Mempool is full, retry with exponential backoff
-						log.Warn().Str("msg", infoMsg).Msg("Mempool is full, retrying with exponential backoff")
+						log.Warn().
+							Err(err).
+							Str("msg", infoMsg).
+							Msg("Mempool is full, retrying with exponential backoff")
 						delay := time.Duration(math.Pow(float64(node.Wallet.RetryDelay), float64(retryCount))) * time.Second
 						time.Sleep(delay)
 						continue
-					case int(sdkerrors.ErrWrongSequence.ABCICode()):
-					case int(sdkerrors.ErrInvalidSequence.ABCICode()):
-						log.Warn().Str("msg", infoMsg).Msg("Account sequence mismatch detected, allow re-fetching sequence")
+					case int(sdkerrors.ErrWrongSequence.ABCICode()), int(sdkerrors.ErrInvalidSequence.ABCICode()):
+						log.Warn().
+							Err(err).
+							Str("msg", infoMsg).
+							Int64("delay", node.Wallet.AccountSequenceRetryDelay).
+							Msg("Account sequence mismatch detected, retrying with fixed delay")
 						// Wait a fixed block-related waiting time
 						time.Sleep(time.Duration(node.Wallet.AccountSequenceRetryDelay) * time.Second)
+						continue
+					case int(sdkerrors.ErrInsufficientFee.ABCICode()):
+						log.Warn().Str("msg", infoMsg).Msg("Insufficient fee")
 						continue
 					case int(sdkerrors.ErrTxTooLarge.ABCICode()):
 						return nil, errorsmod.Wrapf(err, "tx too large")
@@ -63,7 +100,6 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 						return nil, errorsmod.Wrapf(err, "tx already in mempool cache")
 					case int(sdkerrors.ErrInvalidChainID.ABCICode()):
 						return nil, errorsmod.Wrapf(err, "invalid chain-id")
-
 					default:
 						log.Info().Str("msg", infoMsg).Msg("ABCI error, but not special case - regular retry")
 					}
@@ -76,7 +112,6 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 		// NOT ABCI error code: keep on checking for specially handled error types
 		if strings.Contains(err.Error(), ERROR_MESSAGE_ACCOUNT_SEQUENCE_MISMATCH) {
 			log.Warn().Str("msg", infoMsg).Msg("Account sequence mismatch detected, re-fetching sequence")
-			// Wait a fixed block-related waiting time
 			time.Sleep(time.Duration(node.Wallet.AccountSequenceRetryDelay) * time.Second)
 			continue
 		} else if strings.Contains(err.Error(), ERROR_MESSAGE_TX_INCLUDED_IN_BLOCK) {
@@ -94,11 +129,10 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 			}
 			return txResp, nil
 		}
-		// Log the error for each retry.
 		log.Error().Err(err).Str("msg", infoMsg).Msgf("Failed, retrying... (Retry %d/%d)", retryCount, node.Wallet.MaxRetries)
 		// Wait for the uniform delay before retrying
 		time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
 	}
-	// All retries failed, return the last error
-	return nil, err
+
+	return nil, errors.New("Tx not able to complete after failing max retries")
 }
