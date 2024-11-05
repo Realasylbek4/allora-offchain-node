@@ -86,6 +86,27 @@ It spins off a distinct processes per role worker, reputer per topic configered 
 * LOG_LEVEL: Set the logging level. Valid values are `debug`, `info`, `warn`, `error`, `fatal`, `panic`. Defaults to `info`.
 * LOG_TIME_FORMAT: Sets the format of the timestamp in the log. Valid values are `unix`, `unixms`, `unixmicro`, `iso8601`. Defaults to `iso8601`.
 
+## Wallet configuration
+
+The wallet configuration is done in `config.json` under the `wallet` field.
+
+### Gas and Fees
+
+- `gas` can be set to `auto` or a specific gas value. If set to `auto`, the node will automatically calculate the gas limit based on the estimated gas used by the transactions.
+- `gasAdjustment` is used to adjust the gas limit.
+- `gasPrices` and `maxFees` fields are used to set the gas prices and max fees for the wallet. They are expressed in `uallo`.
+
+### Error handling
+
+Error handling is done differently for different types of errors.
+
+#### Retries 
+- `accounSequenceRetryDelay`: For the "account sequence mismatch" error. 
+- `retryDelay`: For all other errors that need retry delays.
+
+
+
+
 ## Configuration examples
 
 A complete example is provided in `config.example.json`. 
