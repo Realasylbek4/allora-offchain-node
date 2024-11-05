@@ -18,7 +18,8 @@ import (
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
 )
 
-const ERROR_MESSAGE_EMA_ALREADY_SENT = "already submitted"
+const ERROR_MESSAGE_DATA_ALREADY_SUBMITTED = "already submitted"
+const ERROR_MESSAGE_CANNOT_UPDATE_EMA = "cannot update EMA"
 const ERROR_MESSAGE_WAITING_FOR_NEXT_BLOCK = "waiting for next block" // This means tx is accepted in mempool but not yet included in a block
 const ERROR_MESSAGE_ACCOUNT_SEQUENCE_MISMATCH = "account sequence mismatch"
 const ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER = "error code:"
@@ -95,7 +96,7 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 	} else if strings.Contains(err.Error(), ERROR_MESSAGE_WAITING_FOR_NEXT_BLOCK) {
 		log.Warn().Str("msg", infoMsg).Msg("Tx accepted in mempool, it will be included in the following block(s) - not retrying")
 		return ERROR_PROCESSING_OK, nil
-	} else if strings.Contains(err.Error(), ERROR_MESSAGE_EMA_ALREADY_SENT) {
+	} else if strings.Contains(err.Error(), ERROR_MESSAGE_DATA_ALREADY_SUBMITTED) || strings.Contains(err.Error(), ERROR_MESSAGE_CANNOT_UPDATE_EMA) {
 		log.Warn().Err(err).Str("msg", infoMsg).Msg("Already sent data for this epoch.")
 		return ERROR_PROCESSING_OK, nil
 	}
