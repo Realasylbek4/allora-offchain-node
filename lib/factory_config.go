@@ -10,6 +10,7 @@ import (
 
 	errorsmod "cosmossdk.io/errors"
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosaccount"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
@@ -41,6 +42,7 @@ func getAlloraClient(config *UserConfig) (*cosmosclient.Client, error) {
 		cosmosclient.WithHome(alloraClientHome),
 		cosmosclient.WithGas(config.Wallet.Gas),
 		cosmosclient.WithGasAdjustment(config.Wallet.GasAdjustment),
+		cosmosclient.WithAccountRetriever(authtypes.AccountRetriever{}),
 	)
 	if err != nil {
 		config.Wallet.SubmitTx = false
