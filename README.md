@@ -99,12 +99,11 @@ The wallet configuration is done in `config.json` under the `wallet` field.
 ### Error handling
 
 Error handling is done differently for different types of errors.
+Note: when an account sequence mismatch is detected, the node will attempt to set the expected sequence number and retry the transaction before broadcasting.
 
 #### Retries 
 - `accounSequenceRetryDelay`: For the "account sequence mismatch" error. 
 - `retryDelay`: For all other errors that need retry delays.
-
-
 
 
 ## Configuration examples
