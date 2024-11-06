@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 
+	errorsmod "cosmossdk.io/errors"
 	"github.com/rs/zerolog/log"
 
 	alloraMath "github.com/allora-network/allora-chain/math"
@@ -13,12 +15,11 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 )
 
-func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, nonce *emissionstypes.Nonce) (bool, error) {
+func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, nonce *emissionstypes.Nonce) error {
 	ctx := context.Background()
 
 	if worker.InferenceEntrypoint == nil && worker.ForecastEntrypoint == nil {
-		log.Error().Msg("Worker has no valid Inference or Forecast entrypoints")
-		return false, nil
+		return errors.New("Worker has no valid Inference or Forecast entrypoints")
 	}
 
 	var workerResponse = lib.WorkerResponse{
@@ -28,8 +29,7 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 	if worker.InferenceEntrypoint != nil {
 		inference, err := worker.InferenceEntrypoint.CalcInference(worker, nonce.BlockHeight)
 		if err != nil {
-			log.Error().Err(err).Str("worker", worker.InferenceEntrypoint.Name()).Msg("Error computing inference for worker")
-			return false, err
+			return errorsmod.Wrapf(err, "Error computing inference for worker, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 		}
 		workerResponse.InfererValue = inference
 		suite.Metrics.IncrementMetricsCounter(lib.InferenceRequestCount, suite.Node.Chain.Address, worker.TopicId)
@@ -39,8 +39,7 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 		forecasts := []lib.NodeValue{}
 		forecasts, err := worker.ForecastEntrypoint.CalcForecast(worker, nonce.BlockHeight)
 		if err != nil {
-			log.Error().Err(err).Str("worker", worker.ForecastEntrypoint.Name()).Msg("Error computing forecast for worker")
-			return false, err
+			return errorsmod.Wrapf(err, "Error computing forecast for worker, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 		}
 		workerResponse.ForecasterValues = forecasts
 		suite.Metrics.IncrementMetricsCounter(lib.ForecastRequestCount, suite.Node.Chain.Address, worker.TopicId)
@@ -48,21 +47,19 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 
 	workerPayload, err := suite.BuildWorkerPayload(workerResponse, nonce.BlockHeight)
 	if err != nil {
-		log.Error().Err(err).Msg("Error building workerPayload")
-		return false, err
+		return errorsmod.Wrapf(err, "Error building worker payload, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 	}
 	suite.Metrics.IncrementMetricsCounter(lib.WorkerDataBuildCount, suite.Node.Chain.Address, worker.TopicId)
 
 	workerDataBundle, err := suite.SignWorkerPayload(&workerPayload)
 	if err != nil {
-		log.Error().Err(err).Msg("Error signing workerPayload")
-		return false, err
+		return errorsmod.Wrapf(err, "Error signing worker payload, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 	}
 	workerDataBundle.Nonce = nonce
 	workerDataBundle.TopicId = worker.TopicId
 
 	if err := workerDataBundle.Validate(); err != nil {
-		return false, err
+		return errorsmod.Wrapf(err, "Error validating worker data bundle, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 	}
 
 	req := &emissionstypes.InsertWorkerPayloadRequest{
@@ -71,7 +68,7 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 	}
 	reqJSON, err := json.Marshal(req)
 	if err != nil {
-		log.Error().Err(err).Msg("Error marshaling InsertWorkerPayload to print Msg as JSON")
+		log.Warn().Err(err).Msg("Error marshaling InsertWorkerPayload to print Msg as JSON")
 	} else {
 		log.Info().Str("req", string(reqJSON)).Msg("Sending InsertWorkerPayload to chain")
 	}
@@ -79,13 +76,13 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 	if suite.Node.Wallet.SubmitTx {
 		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Worker Data to chain")
 		if err != nil {
-			return false, err
+			return errorsmod.Wrapf(err, "Error sending Worker Data to chain, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 		}
 		suite.Metrics.IncrementMetricsCounter(lib.WorkerChainSubmissionCount, suite.Node.Chain.Address, worker.TopicId)
 	} else {
 		log.Info().Uint64("topicId", worker.TopicId).Msg("SubmitTx=false; Skipping sending Worker Data to chain")
 	}
-	return true, nil
+	return nil
 }
 
 func (suite *UseCaseSuite) BuildWorkerPayload(workerResponse lib.WorkerResponse, nonce emissionstypes.BlockHeight) (emissionstypes.InferenceForecastBundle, error) {

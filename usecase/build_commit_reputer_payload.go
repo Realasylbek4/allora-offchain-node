@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	errorsmod "cosmossdk.io/errors"
 	alloraMath "github.com/allora-network/allora-chain/math"
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
@@ -17,13 +18,12 @@ import (
 // Get the reputer's values at the block from the chain
 // Compute loss bundle with the reputer provided Loss function and ground truth
 // sign and commit to chain
-func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, nonce lib.BlockHeight) (bool, error) {
+func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, nonce lib.BlockHeight) error {
 	ctx := context.Background()
 
 	valueBundle, err := suite.Node.GetReputerValuesAtBlock(reputer.TopicId, nonce)
 	if err != nil {
-		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to get reputer values at block")
-		return false, err
+		return errorsmod.Wrapf(err, "Error getting reputer values, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 	valueBundle.ReputerRequestNonce = &emissionstypes.ReputerRequestNonce{
 		ReputerNonce: &emissionstypes.Nonce{BlockHeight: nonce},
@@ -32,26 +32,23 @@ func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, 
 
 	sourceTruth, err := reputer.GroundTruthEntrypoint.GroundTruth(reputer, nonce)
 	if err != nil {
-		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to get source truth from reputer")
-		return false, err
+		return errorsmod.Wrapf(err, "Error getting source truth from reputer, topicId: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 	suite.Metrics.IncrementMetricsCounter(lib.TruthRequestCount, suite.Node.Chain.Address, reputer.TopicId)
 
 	lossBundle, err := suite.ComputeLossBundle(sourceTruth, valueBundle, reputer)
 	if err != nil {
-		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to compute loss bundle")
-		return false, err
+		return errorsmod.Wrapf(err, "Error computing loss bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 	suite.Metrics.IncrementMetricsCounter(lib.ReputerDataBuildCount, suite.Node.Chain.Address, reputer.TopicId)
 
 	signedValueBundle, err := suite.SignReputerValueBundle(&lossBundle)
 	if err != nil {
-		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to sign reputer value bundle")
-		return false, err
+		return errorsmod.Wrapf(err, "Error signing reputer value bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 
 	if err := signedValueBundle.Validate(); err != nil {
-		return false, err
+		return errorsmod.Wrapf(err, "Error validating reputer value bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 
 	req := &emissionstypes.InsertReputerPayloadRequest{
@@ -67,15 +64,14 @@ func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, 
 	if suite.Node.Wallet.SubmitTx {
 		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Reputer Data to chain")
 		if err != nil {
-			log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msgf("Error sending Reputer Data to chain: %s", err)
-			return false, err
+			return errorsmod.Wrapf(err, "Error sending Reputer Data to chain, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 		}
 		suite.Metrics.IncrementMetricsCounter(lib.ReputerChainSubmissionCount, suite.Node.Chain.Address, reputer.TopicId)
 	} else {
 		log.Info().Uint64("topicId", reputer.TopicId).Msg("SubmitTx=false; Skipping sending Reputer Data to chain")
 	}
 
-	return true, nil
+	return nil
 }
 
 func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionstypes.ValueBundle, reputer lib.ReputerConfig) (emissionstypes.ValueBundle, error) {
