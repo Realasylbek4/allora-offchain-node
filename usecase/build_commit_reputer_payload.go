@@ -23,7 +23,7 @@ func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, 
 
 	valueBundle, err := suite.Node.GetReputerValuesAtBlock(reputer.TopicId, nonce)
 	if err != nil {
-		return errorsmod.Wrapf(err, "Error getting reputer values, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
+		return errorsmod.Wrapf(err, "error getting reputer values, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 	valueBundle.ReputerRequestNonce = &emissionstypes.ReputerRequestNonce{
 		ReputerNonce: &emissionstypes.Nonce{BlockHeight: nonce},
@@ -32,23 +32,23 @@ func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, 
 
 	sourceTruth, err := reputer.GroundTruthEntrypoint.GroundTruth(reputer, nonce)
 	if err != nil {
-		return errorsmod.Wrapf(err, "Error getting source truth from reputer, topicId: %d, blockHeight: %d", reputer.TopicId, nonce)
+		return errorsmod.Wrapf(err, "error getting source truth from reputer, topicId: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 	suite.Metrics.IncrementMetricsCounter(lib.TruthRequestCount, suite.Node.Chain.Address, reputer.TopicId)
 
 	lossBundle, err := suite.ComputeLossBundle(sourceTruth, valueBundle, reputer)
 	if err != nil {
-		return errorsmod.Wrapf(err, "Error computing loss bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
+		return errorsmod.Wrapf(err, "error computing loss bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 	suite.Metrics.IncrementMetricsCounter(lib.ReputerDataBuildCount, suite.Node.Chain.Address, reputer.TopicId)
 
 	signedValueBundle, err := suite.SignReputerValueBundle(&lossBundle)
 	if err != nil {
-		return errorsmod.Wrapf(err, "Error signing reputer value bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
+		return errorsmod.Wrapf(err, "error signing reputer value bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 
 	if err := signedValueBundle.Validate(); err != nil {
-		return errorsmod.Wrapf(err, "Error validating reputer value bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
+		return errorsmod.Wrapf(err, "error validating reputer value bundle, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 	}
 
 	req := &emissionstypes.InsertReputerPayloadRequest{
@@ -64,7 +64,7 @@ func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, 
 	if suite.Node.Wallet.SubmitTx {
 		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Reputer Data to chain")
 		if err != nil {
-			return errorsmod.Wrapf(err, "Error sending Reputer Data to chain, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
+			return errorsmod.Wrapf(err, "error sending Reputer Data to chain, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 		}
 		suite.Metrics.IncrementMetricsCounter(lib.ReputerChainSubmissionCount, suite.Node.Chain.Address, reputer.TopicId)
 	} else {
@@ -98,8 +98,7 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 		var err error
 		is_never_negative, err = reputer.LossFunctionEntrypoint.IsLossFunctionNeverNegative(reputer, lossMethodOptions)
 		if err != nil {
-			log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to determine if loss function is never negative")
-			return emissionstypes.ValueBundle{}, err
+			return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "failed to determine if loss function is never negative")
 		}
 		// cache the result
 		reputer.LossFunctionParameters.IsNeverNegative = &is_never_negative
@@ -115,23 +114,23 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 	computeLoss := func(value alloraMath.Dec, description string) (alloraMath.Dec, error) {
 		lossStr, err := reputer.LossFunctionEntrypoint.LossFunction(reputer, sourceTruth, value.String(), lossMethodOptions)
 		if err != nil {
-			return alloraMath.Dec{}, fmt.Errorf("error computing loss for %s: %w", description, err)
+			return alloraMath.Dec{}, errorsmod.Wrapf(err, "error computing loss for %s", description)
 		}
 
 		loss, err := alloraMath.NewDecFromString(lossStr)
 		if err != nil {
-			return alloraMath.Dec{}, fmt.Errorf("error parsing loss value for %s: %w", description, err)
+			return alloraMath.Dec{}, errorsmod.Wrapf(err, "error parsing loss value for %s", description)
 		}
 
 		if is_never_negative {
 			loss, err = alloraMath.Log10(loss)
 			if err != nil {
-				return alloraMath.Dec{}, fmt.Errorf("error Log10 for %s: %w", description, err)
+				return alloraMath.Dec{}, errorsmod.Wrapf(err, "error Log10 for %s", description)
 			}
 		}
 
 		if err := emissionstypes.ValidateDec(loss); err != nil {
-			return alloraMath.Dec{}, fmt.Errorf("invalid loss value for %s: %w", description, err)
+			return alloraMath.Dec{}, errorsmod.Wrapf(err, "invalid loss value for %s", description)
 		}
 
 		return loss, nil
@@ -139,16 +138,14 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 
 	// Combined Value
 	if combinedLoss, err := computeLoss(vb.CombinedValue, "combined value"); err != nil {
-		log.Error().Err(err).Msg("Error computing loss for combined value")
-		return emissionstypes.ValueBundle{}, err
+		return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "error computing loss for combined value")
 	} else {
 		losses.CombinedValue = combinedLoss
 	}
 
 	// Naive Value
 	if naiveLoss, err := computeLoss(vb.NaiveValue, "naive value"); err != nil {
-		log.Error().Err(err).Msg("Error computing loss for naive value")
-		return emissionstypes.ValueBundle{}, err
+		return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "error computing loss for naive value")
 	} else {
 		losses.NaiveValue = naiveLoss
 	}
@@ -157,8 +154,7 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 	losses.InfererValues = make([]*emissionstypes.WorkerAttributedValue, len(vb.InfererValues))
 	for i, val := range vb.InfererValues {
 		if loss, err := computeLoss(val.Value, fmt.Sprintf("inferer value %d", i)); err != nil {
-			log.Error().Err(err).Msg("Error computing loss for inferer value")
-			return emissionstypes.ValueBundle{}, err
+			return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "error computing loss for inferer value")
 		} else {
 			losses.InfererValues[i] = &emissionstypes.WorkerAttributedValue{Worker: val.Worker, Value: loss}
 		}
@@ -168,8 +164,7 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 	losses.ForecasterValues = make([]*emissionstypes.WorkerAttributedValue, len(vb.ForecasterValues))
 	for i, val := range vb.ForecasterValues {
 		if loss, err := computeLoss(val.Value, fmt.Sprintf("forecaster value %d", i)); err != nil {
-			log.Error().Err(err).Msg("Error computing loss for forecaster value")
-			return emissionstypes.ValueBundle{}, err
+			return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "error computing loss for forecaster value")
 		} else {
 			losses.ForecasterValues[i] = &emissionstypes.WorkerAttributedValue{Worker: val.Worker, Value: loss}
 		}
@@ -179,8 +174,7 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 	losses.OneOutInfererValues = make([]*emissionstypes.WithheldWorkerAttributedValue, len(vb.OneOutInfererValues))
 	for i, val := range vb.OneOutInfererValues {
 		if loss, err := computeLoss(val.Value, fmt.Sprintf("one out inferer value %d", i)); err != nil {
-			log.Error().Err(err).Msg("Error computing loss for one out inferer value")
-			return emissionstypes.ValueBundle{}, err
+			return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "error computing loss for one-out inferer value")
 		} else {
 			losses.OneOutInfererValues[i] = &emissionstypes.WithheldWorkerAttributedValue{Worker: val.Worker, Value: loss}
 		}
@@ -190,8 +184,7 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 	losses.OneOutForecasterValues = make([]*emissionstypes.WithheldWorkerAttributedValue, len(vb.OneOutForecasterValues))
 	for i, val := range vb.OneOutForecasterValues {
 		if loss, err := computeLoss(val.Value, fmt.Sprintf("one out forecaster value %d", i)); err != nil {
-			log.Error().Err(err).Msg("Error computing loss for one out forecaster value")
-			return emissionstypes.ValueBundle{}, err
+			return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "error computing loss for one-out forecaster value")
 		} else {
 			losses.OneOutForecasterValues[i] = &emissionstypes.WithheldWorkerAttributedValue{Worker: val.Worker, Value: loss}
 		}
@@ -201,8 +194,7 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 	losses.OneInForecasterValues = make([]*emissionstypes.WorkerAttributedValue, len(vb.OneInForecasterValues))
 	for i, val := range vb.OneInForecasterValues {
 		if loss, err := computeLoss(val.Value, fmt.Sprintf("one in forecaster value %d", i)); err != nil {
-			log.Error().Err(err).Msg("Error computing loss for one in forecaster value")
-			return emissionstypes.ValueBundle{}, err
+			return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "error computing loss for one-in forecaster value")
 		} else {
 			losses.OneInForecasterValues[i] = &emissionstypes.WorkerAttributedValue{Worker: val.Worker, Value: loss}
 		}
@@ -215,14 +207,12 @@ func (suite *UseCaseSuite) SignReputerValueBundle(valueBundle *emissionstypes.Va
 	protoBytesIn := make([]byte, 0) // Create a byte slice with initial length 0 and capacity greater than 0
 	protoBytesIn, err := valueBundle.XXX_Marshal(protoBytesIn, true)
 	if err != nil {
-		log.Error().Err(err).Msg("Error Marshalling valueBundle")
-		return &emissionstypes.ReputerValueBundle{}, err
+		return &emissionstypes.ReputerValueBundle{}, errorsmod.Wrapf(err, "error marshalling valueBundle")
 	}
 	sig, pk, err := suite.Node.Chain.Client.Context().Keyring.Sign(suite.Node.Chain.Account.Name, protoBytesIn, signing.SignMode_SIGN_MODE_DIRECT)
 	pkStr := hex.EncodeToString(pk.Bytes())
 	if err != nil {
-		log.Error().Err(err).Msg("Error signing valueBundle")
-		return &emissionstypes.ReputerValueBundle{}, err
+		return &emissionstypes.ReputerValueBundle{}, errorsmod.Wrapf(err, "error signing valueBundle")
 	}
 
 	reputerValueBundle := &emissionstypes.ReputerValueBundle{

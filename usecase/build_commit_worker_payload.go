@@ -92,8 +92,7 @@ func (suite *UseCaseSuite) BuildWorkerPayload(workerResponse lib.WorkerResponse,
 	if workerResponse.InfererValue != "" {
 		infererValue, err := alloraMath.NewDecFromString(workerResponse.InfererValue)
 		if err != nil {
-			log.Error().Err(err).Msg("Error converting infererValue to Dec")
-			return emissionstypes.InferenceForecastBundle{}, err
+			return emissionstypes.InferenceForecastBundle{}, errorsmod.Wrapf(err, "error converting infererValue to Dec")
 		}
 		builtInference := &emissionstypes.Inference{
 			TopicId:     workerResponse.TopicId,
@@ -109,8 +108,7 @@ func (suite *UseCaseSuite) BuildWorkerPayload(workerResponse lib.WorkerResponse,
 		for _, val := range workerResponse.ForecasterValues {
 			decVal, err := alloraMath.NewDecFromString(val.Value)
 			if err != nil {
-				log.Error().Err(err).Msg("Error converting forecasterValue to Dec")
-				return emissionstypes.InferenceForecastBundle{}, err
+				return emissionstypes.InferenceForecastBundle{}, errorsmod.Wrapf(err, "error converting forecasterValue to Dec")
 			}
 			forecasterElements = append(forecasterElements, &emissionstypes.ForecastElement{
 				Inferer: val.Worker,
@@ -136,14 +134,12 @@ func (suite *UseCaseSuite) SignWorkerPayload(workerPayload *emissionstypes.Infer
 	protoBytesIn := make([]byte, 0) // Create a byte slice with initial length 0 and capacity greater than 0
 	protoBytesIn, err := workerPayload.XXX_Marshal(protoBytesIn, true)
 	if err != nil {
-		log.Error().Err(err).Msg("Error Marshalling workerPayload")
-		return &emissionstypes.WorkerDataBundle{}, err
+		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error marshalling workerPayload")
 	}
 	sig, pk, err := suite.Node.Chain.Client.Context().Keyring.Sign(suite.Node.Chain.Account.Name, protoBytesIn, signing.SignMode_SIGN_MODE_DIRECT)
 	pkStr := hex.EncodeToString(pk.Bytes())
 	if err != nil {
-		log.Error().Err(err).Msg("Error signing the InferenceForecastsBundle message")
-		return &emissionstypes.WorkerDataBundle{}, err
+		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error signing the InferenceForecastsBundle message")
 	}
 	// Create workerDataBundle with signature
 	workerDataBundle := &emissionstypes.WorkerDataBundle{
