@@ -11,7 +11,10 @@ type UseCaseSuite struct {
 
 // Static method to create a new UseCaseSuite
 func NewUseCaseSuite(userConfig lib.UserConfig) (*UseCaseSuite, error) {
-	userConfig.ValidateConfigAdapters()
+	err := userConfig.ValidateConfigAdapters()
+	if err != nil {
+		return nil, err
+	}
 	nodeConfig, err := userConfig.GenerateNodeConfig()
 	if err != nil {
 		return nil, err

@@ -15,12 +15,9 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-// TODO move these to Config
-const (
-	blockDurationAvg                         float64 = 5.0  // Avg block duration in seconds
-	correctionFactor                         float64 = 0.75 // Correction factor for the time estimation
-	SUBMISSION_WINDOWS_TO_BE_NEAR_NEW_WINDOW int64   = 2
-)
+// Number of submission windows considered to be "near" the new window
+// When it is near, the checks are more frequent
+const SUBMISSION_WINDOWS_TO_BE_NEAR_NEW_WINDOW int64 = 2
 
 func (suite *UseCaseSuite) Spawn() {
 	var wg sync.WaitGroup
@@ -195,7 +192,8 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 			}
 			// Wait until the epoch submission window opens
 			distanceUntilNextEpoch := epochEnd - currentBlockHeight
-			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(distanceUntilNextEpoch, blockDurationAvg, correctionFactor)
+			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(distanceUntilNextEpoch,
+				suite.Node.Wallet.BlockDurationEstimated, suite.Node.Wallet.WindowCorrectionFactor)
 			if err != nil {
 				log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error calculating time distance to next epoch after sending tx")
 				return
@@ -207,7 +205,7 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 				Msg("Waiting until the epoch submission window opens")
 			suite.Wait(correctedTimeDistanceInSeconds)
 		} else if currentBlockHeight > epochEnd {
-			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(epochLength, blockDurationAvg, 1.0)
+			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(epochLength, suite.Node.Wallet.BlockDurationEstimated, 1.0)
 			if err != nil {
 				log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("epochLength and correctionFactor must be positive")
 				return
@@ -222,7 +220,7 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 				// Wait until the center of the epoch submission window
 				offset := generateFairOffset(workerSubmissionWindow)
 				closeBlockDistance := distanceUntilNextEpoch + offset
-				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(closeBlockDistance, blockDurationAvg, 1.0)
+				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(closeBlockDistance, suite.Node.Wallet.BlockDurationEstimated, 1.0)
 				if err != nil {
 					log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error calculating close distance to epochLength")
 					return
@@ -237,7 +235,8 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 				suite.Wait(correctedTimeDistanceInSeconds)
 			} else {
 				// Wait until the epoch submission window opens
-				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(distanceUntilNextEpoch, blockDurationAvg, correctionFactor)
+				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(distanceUntilNextEpoch,
+					suite.Node.Wallet.BlockDurationEstimated, suite.Node.Wallet.WindowCorrectionFactor)
 				if err != nil {
 					log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Error calculating far distance to epochLength")
 					return
