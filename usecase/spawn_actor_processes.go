@@ -261,6 +261,7 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 		log.Error().Uint64("topicId", reputer.TopicId).Msg("Failed to register or sufficiently stake reputer for topic")
 		return
 	}
+	log.Debug().Uint64("topicId", reputer.TopicId).Msg("Reputer registered and staked")
 
 	latestNonceHeightActedUpon := int64(0)
 	for {
