@@ -45,6 +45,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Removed
+
+### Fixed
+
+### Security
+
+
+## v0.5.1
+
+### Added
+
 * [#75](https://github.com/allora-network/allora-offchain-node/pull/75) Configurable fee awareness
 
 ### Removed
