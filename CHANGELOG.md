@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * [#74](https://github.com/allora-network/allora-offchain-node/pull/74) Improve logging
 * [#76](https://github.com/allora-network/allora-offchain-node/pull/76) Account sequence mismatch using expected number + other error handling improvements
+* [#77](https://github.com/allora-network/allora-offchain-node/pull/77) More idiomatic buildcommit functions, use of errorsmod, error handling + duplicated error logs
 
 ### Security
 

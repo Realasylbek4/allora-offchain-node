@@ -76,7 +76,7 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 				case int(sdkerrors.ErrInvalidChainID.ABCICode()):
 					return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "invalid chain-id")
 				default:
-					log.Info().Str("msg", infoMsg).Msg("ABCI error, but not special case - regular retry")
+					log.Info().Int("errorCode", errorCode).Str("msg", infoMsg).Msg("ABCI error, but not special case - regular retry")
 				}
 			}
 		} else {
@@ -97,9 +97,10 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 		log.Warn().Str("msg", infoMsg).Msg("Tx accepted in mempool, it will be included in the following block(s) - not retrying")
 		return ERROR_PROCESSING_OK, nil
 	} else if strings.Contains(err.Error(), ERROR_MESSAGE_DATA_ALREADY_SUBMITTED) || strings.Contains(err.Error(), ERROR_MESSAGE_CANNOT_UPDATE_EMA) {
-		log.Warn().Err(err).Str("msg", infoMsg).Msg("Already sent data for this epoch.")
+		log.Warn().Err(err).Str("msg", infoMsg).Msg("Already submitted data for this epoch.")
 		return ERROR_PROCESSING_OK, nil
 	}
+
 	return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "failed to process error")
 }
 

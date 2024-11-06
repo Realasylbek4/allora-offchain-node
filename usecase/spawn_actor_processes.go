@@ -65,8 +65,8 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 			if latestOpenWorkerNonce.BlockHeight > latestNonceHeightActedUpon {
 				log.Debug().Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).Msg("Building and committing worker payload for topic")
 
-				success, err := suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce)
-				if !success || err != nil {
+				err := suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce)
+				if err != nil {
 					log.Error().Err(err).Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).Msg("Error building and committing worker payload for topic")
 				}
 				latestNonceHeightActedUpon = latestOpenWorkerNonce.BlockHeight
@@ -96,8 +96,8 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 			if latestOpenReputerNonce > latestNonceHeightActedUpon {
 				log.Debug().Uint64("topicId", reputer.TopicId).Int64("BlockHeight", latestOpenReputerNonce).Msg("Building and committing reputer payload for topic")
 
-				success, err := suite.BuildCommitReputerPayload(reputer, latestOpenReputerNonce)
-				if !success || err != nil {
+				err := suite.BuildCommitReputerPayload(reputer, latestOpenReputerNonce)
+				if err != nil {
 					log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Error building and committing reputer payload for topic")
 				}
 				latestNonceHeightActedUpon = latestOpenReputerNonce
