@@ -111,13 +111,22 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 	var txResp *cosmosclient.Response
 	// Excess fees correction factor translated to fees using configured gas prices
 	excessFactorFees := float64(EXCESS_CORRECTION_IN_GAS) * node.Wallet.GasPrices
-	// Flag to only recalculate fees on first attempt or on fees error
-	recalculateFees := true
+	// Keep track of how many times fees need to be recalculated to avoid missing fee info between errors
+	recalculateFees := 0
+	// Use to keep track of expected sequence number between errors
+	globalExpectedSeqNum := uint64(0)
 
 	for retryCount := int64(0); retryCount <= node.Wallet.MaxRetries; retryCount++ {
 		log.Debug().Msgf("SendDataWithRetry iteration started (%d/%d)", retryCount, node.Wallet.MaxRetries)
 		// Create tx without fees
 		txOptions := cosmosclient.TxOptions{}
+		if globalExpectedSeqNum > 0 {
+			log.Info().
+				Uint64("expected", globalExpectedSeqNum).
+				Uint64("current", node.Chain.Client.TxFactory.Sequence()).
+				Msg("Resetting sequence to expected from previous sequence errors")
+			node.Chain.Client.TxFactory = node.Chain.Client.TxFactory.WithSequence(globalExpectedSeqNum)
+		}
 		txService, err := node.Chain.Client.CreateTxWithOptions(ctx, node.Chain.Account, txOptions, req)
 		if err != nil {
 			// Handle error on creation of tx, before broadcasting
@@ -136,6 +145,7 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				if err != nil {
 					return nil, errorsmod.Wrapf(err, "failed to reset sequence second time, exiting")
 				}
+				globalExpectedSeqNum = expectedSeqNum
 			} else {
 				errorResponse, err := processError(err, infoMsg, retryCount, node)
 				switch errorResponse {
@@ -154,7 +164,8 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 					continue
 				case ERROR_PROCESSING_FEES:
 					// Error has not been handled, just mark as recalculate fees on this iteration
-					recalculateFees = true
+					log.Debug().Msg("Marking fee recalculation on tx creation")
+					recalculateFees += 1
 				default:
 					return nil, errorsmod.Wrapf(err, "failed to process error")
 				}
@@ -164,11 +175,11 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 		}
 
 		// Handle fees if necessary
-		if node.Wallet.GasPrices > 0 && recalculateFees {
+		if node.Wallet.GasPrices > 0 && recalculateFees > 0 {
 			// Precalculate fees
 			fees := uint64(float64(txService.Gas()+EXCESS_CORRECTION_IN_GAS) * node.Wallet.GasPrices)
-			// Add excess fees correction factor to increase with each retry
-			fees = fees + uint64(float64(retryCount+1)*excessFactorFees)
+			// Add excess fees correction factor to increase with each fee-problematic retry
+			fees = fees + uint64(float64(recalculateFees)*excessFactorFees)
 			// Limit fees to maxFees
 			if fees > node.Wallet.MaxFees {
 				log.Warn().Uint64("gas", txService.Gas()).Uint64("limit", node.Wallet.MaxFees).Msg("Gas limit exceeded, using maxFees instead")
@@ -183,8 +194,6 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				return nil, err
 			}
 		}
-		// set to false after recalculating fees
-		recalculateFees = false
 
 		// Broadcast tx
 		txResponse, err := txService.Broadcast(ctx)
@@ -210,7 +219,8 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 			continue
 		case ERROR_PROCESSING_FEES:
 			// Error has not been handled, just mark as recalculate fees on this iteration
-			recalculateFees = true
+			log.Debug().Msg("Marking fee recalculation on tx broadcasting")
+			recalculateFees += 1
 			continue
 		default:
 			return nil, errorsmod.Wrapf(err, "failed to process error")

@@ -47,6 +47,10 @@ type ChainConfig struct {
 	AddressPrefix        string // prefix for the allora addresses
 }
 
+type TopicActor interface {
+	GetTopicId() emissions.TopicId
+}
+
 type WorkerConfig struct {
 	TopicId                 emissions.TopicId
 	InferenceEntrypointName string
@@ -55,6 +59,11 @@ type WorkerConfig struct {
 	ForecastEntrypoint      AlloraAdapter
 	LoopSeconds             int64             // seconds to wait between attempts to get next worker nonce
 	Parameters              map[string]string // Map for variable configuration values
+}
+
+// Implement TopicActor interface for WorkerConfig
+func (w WorkerConfig) GetTopicId() emissions.TopicId {
+	return w.TopicId
 }
 
 type ReputerConfig struct {
@@ -71,6 +80,11 @@ type ReputerConfig struct {
 	LoopSeconds            int64                  // seconds to wait between attempts to get next reptuer nonces
 	GroundTruthParameters  map[string]string      // Map for variable configuration values
 	LossFunctionParameters LossFunctionParameters // Map for variable configuration values
+}
+
+// Implement TopicActor interface for ReputerConfig
+func (r ReputerConfig) GetTopicId() emissions.TopicId {
+	return r.TopicId
 }
 
 type LossFunctionParameters struct {
