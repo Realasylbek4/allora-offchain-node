@@ -15,11 +15,12 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-// Number of submission windows considered to be "near" the new window
-// When it is near, the checks are more frequent
-const SUBMISSION_WINDOWS_TO_BE_NEAR_NEW_WINDOW int64 = 2
+// Number of submission windows considered to be "near" the next window
+// When time is near, the control is more accurate
+const NUM_SUBMISSION_WINDOWS_FOR_SUBMISSION_NEARNESS int64 = 2
 
 // Correction factor used when calculating time distances near window
+// Waiting times under nearness circumstances are adjusted by this factor
 const NEARNESS_CORRECTION_FACTOR float64 = 1.0
 
 // Minimum wait time between status checks
@@ -254,7 +255,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 	}
 
 	epochLength := topicInfo.EpochLength
-	minBlocksToCheck := params.NearWindowLength * SUBMISSION_WINDOWS_TO_BE_NEAR_NEW_WINDOW
+	minBlocksToCheck := params.NearWindowLength * NUM_SUBMISSION_WINDOWS_FOR_SUBMISSION_NEARNESS
 	latestNonceHeightSentTxFor := int64(0)
 	var currentBlockHeight int64
 
