@@ -106,6 +106,13 @@ Note: when an account sequence mismatch is detected, the node will attempt to se
 - `retryDelay`: For all other errors that need retry delays.
 
 
+### Smart Window Detection
+
+The node will automatically detect the submission window length for each topic on each actor type.
+This can be configured by the following settings in the config.json:
+* `blockDurationEstimated`: Estimated network block time in seconds. Minimum is 1.
+* `windowCorrectionFactor`: Correction factor to fine-tune the submission window length. Higher values optimize the number of calls for window checking. Minimum is 0.5.
+
 ## Configuration examples
 
 A complete example is provided in `config.example.json`. 
