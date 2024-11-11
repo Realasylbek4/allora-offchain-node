@@ -143,8 +143,11 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				log.Info().Uint64("expected", expectedSeqNum).Uint64("current", currentSeqNum).Msg("Retrying resetting sequence from current to expected")
 				txService, err = node.Chain.Client.CreateTxWithOptions(ctx, node.Chain.Account, txOptions, req)
 				if err != nil {
-					return nil, errorsmod.Wrapf(err, "failed to reset sequence second time, exiting")
+					log.Error().Err(err).Str("msg", infoMsg).Msg("Failed to reset sequence second time, retrying with regular delay")
+					time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+					continue
 				}
+				// if creation is successful, make the expected sequence number persistent
 				globalExpectedSeqNum = expectedSeqNum
 			} else {
 				errorResponse, err := processError(err, infoMsg, retryCount, node)

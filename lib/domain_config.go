@@ -56,8 +56,7 @@ type WorkerConfig struct {
 	InferenceEntrypointName string
 	InferenceEntrypoint     AlloraAdapter
 	ForecastEntrypointName  string
-	ForecastEntrypoint      AlloraAdapter
-	LoopSeconds             int64             // seconds to wait between attempts to get next worker nonce
+	ForecastEntrypoint      AlloraAdapter     // seconds to wait between attempts to get next worker nonce
 	Parameters              map[string]string // Map for variable configuration values
 }
 
@@ -77,7 +76,6 @@ type ReputerConfig struct {
 	// This is idempotent in that it will not add more stake than specified here.
 	// Set to 0 to effectively disable this feature and use whatever stake has already been added.
 	MinStake               int64
-	LoopSeconds            int64                  // seconds to wait between attempts to get next reptuer nonces
 	GroundTruthParameters  map[string]string      // Map for variable configuration values
 	LossFunctionParameters LossFunctionParameters // Map for variable configuration values
 }
@@ -161,10 +159,10 @@ func (c *UserConfig) ValidateWalletConfig() error {
 		return errors.New(fmt.Sprintf("block duration estimated lower than the minimum: %f < %f", c.Wallet.BlockDurationEstimated, BlockDurationEstimatedMin))
 	}
 	if c.Wallet.RetryDelay < RetryDelayMin {
-		return errors.New(fmt.Sprintf("retry delay lower than the minimum: %f < %f", c.Wallet.RetryDelay, RetryDelayMin))
+		return errors.New(fmt.Sprintf("retry delay lower than the minimum: %d < %d", c.Wallet.RetryDelay, RetryDelayMin))
 	}
 	if c.Wallet.AccountSequenceRetryDelay < AccountSequenceRetryDelayMin {
-		return errors.New(fmt.Sprintf("account sequence retry delay lower than the minimum: %f < %f", c.Wallet.AccountSequenceRetryDelay, AccountSequenceRetryDelayMin))
+		return errors.New(fmt.Sprintf("account sequence retry delay lower than the minimum: %d < %d", c.Wallet.AccountSequenceRetryDelay, AccountSequenceRetryDelayMin))
 	}
 
 	return nil

@@ -5,16 +5,20 @@
       "alloraHomeDir": "_ALLORA_WALLET_HOME_DIR_",
       "gas": "_ALLORA_WALLET_GAS_",
       "gasAdjustment": _ALLORA_WALLET_GAS_ADJUSTMENT_,
+      "gasPrices": _ALLORA_WALLET_GAS_PRICES_,
+      "maxFees": _ALLORA_WALLET_MAX_FEES_,
       "nodeRpc": "_ALLORA_WALLET_NODE_RPC_",
       "maxRetries": _ALLORA_WALLET_MAX_RETRIES_,
-      "delay": _ALLORA_WALLET_DELAY_,
-      "submitTx": _ALLORA_WALLET_SUBMIT_TX_
+      "retryDelay": _ALLORA_WALLET_RETRY_DELAY_,
+      "accountSequenceRetryDelay": _ALLORA_WALLET_ACCOUNT_SEQUENCE_RETRY_DELAY_,
+      "submitTx": _ALLORA_WALLET_SUBMIT_TX_,
+      "blockDurationEstimated": _ALLORA_WALLET_BLOCK_DURATION_ESTIMATED_,
+      "windowCorrectionFactor": _ALLORA_WALLET_WINDOW_CORRECTION_FACTOR_
     },
     "worker": [
       {
         "topicId": _ALLORA_WORKER_TOPIC_ID_,
         "inferenceEntrypointName": "_ALLORA_WORKER_INFERENCE_ENTRYPOINT_NAME_",
-        "loopSeconds": _ALLORA_WORKER_LOOP_SECONDS_,
         "parameters": {
           "InferenceEndpoint": "_ALLORA_WORKER_INFERENCE_ENDPOINT_",
           "Token": "_ALLORA_WORKER_TOKEN_"
@@ -26,7 +30,6 @@
         "topicId": _ALLORA_REPUTER_TOPIC_ID_,
         "groundTruthEntrypointName": "_ALLORA_REPUTER_ENTRYPOINT_NAME_",
         "lossFunctionEntrypointName": "_ALLORA_REPUTER_ENTRYPOINT_NAME_",
-        "loopSeconds": _ALLORA_REPUTER_LOOP_SECONDS_,
         "minStake": _ALLORA_REPUTER_MIN_STAKE_,
         "groundTruthParameters": {
           "GroundTruthEndpoint": "_ALLORA_REPUTER_SOURCE_OF_TRUTH_ENDPOINT_",
