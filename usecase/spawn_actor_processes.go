@@ -163,15 +163,16 @@ func calculateTimeDistanceInSeconds(distanceUntilNextEpoch int64, blockDurationA
 	return int64(math.Round(correctedTimeDistance)), nil
 }
 
-func generateFairOffset(workerSubmissionWindow int64) int64 {
+// Generates a random offset within the submission window
+func generateFairOffset(submissionWindow int64) int64 {
 	// Ensure the random number generator is seeded
 	source := rand.NewSource(uint64(time.Now().UnixNano()))
 	rng := rand.New(source)
 
 	// Calculate the center of the window
-	center := workerSubmissionWindow / 2
+	center := submissionWindow / 2
 
-	// Generate a random number between -maxOffset and +maxOffset
+	// Generate a random number between start and window center
 	offset := rng.Int63n(center + 1)
 
 	return offset
@@ -301,7 +302,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 			}
 
 			distanceUntilNextEpoch := epochEnd - currentBlockHeight
-			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(
+			waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
 				distanceUntilNextEpoch,
 				suite.Node.Wallet.BlockDurationEstimated,
 				suite.Node.Wallet.WindowCorrectionFactor,
@@ -320,11 +321,12 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 				Str("actorType", params.ActorType).
 				Int64("currentBlockHeight", currentBlockHeight).
 				Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
-				Int64("correctedTimeDistanceInSeconds", correctedTimeDistanceInSeconds).
+				Int64("waitingTimeInSeconds", waitingTimeInSeconds).
 				Msg("Waiting until the submission window opens after sending")
-			suite.Wait(correctedTimeDistanceInSeconds)
+			suite.Wait(waitingTimeInSeconds)
 		} else if currentBlockHeight > epochEnd {
-			correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(
+			// Inconsistent topic data, wait until the next epoch
+			waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
 				epochLength,
 				suite.Node.Wallet.BlockDurationEstimated,
 				NEARNESS_CORRECTION_FACTOR,
@@ -340,17 +342,16 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 			log.Warn().
 				Uint64("topicId", uint64(params.Config.GetTopicId())).
 				Str("actorType", params.ActorType).
-				Int64("correctedTimeDistanceInSeconds", correctedTimeDistanceInSeconds).
+				Int64("waitingTimeInSeconds", waitingTimeInSeconds).
 				Msg("Current block height is greater than next epoch length, inactive topic? Waiting seconds...")
-			suite.Wait(correctedTimeDistanceInSeconds)
+			suite.Wait(waitingTimeInSeconds)
 		} else {
 			distanceUntilNextEpoch := epochEnd - currentBlockHeight
-
 			if distanceUntilNextEpoch <= minBlocksToCheck {
 				// Close distance, check more closely until the submission window opens
 				offset := generateFairOffset(params.SubmissionWindowLength)
 				closeBlockDistance := distanceUntilNextEpoch + offset
-				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(
+				waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
 					closeBlockDistance,
 					suite.Node.Wallet.BlockDurationEstimated,
 					NEARNESS_CORRECTION_FACTOR,
@@ -371,12 +372,12 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 					Int64("currentBlockHeight", currentBlockHeight).
 					Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
 					Int64("closeBlockDistance", closeBlockDistance).
-					Int64("correctedTimeDistanceInSeconds", correctedTimeDistanceInSeconds).
+					Int64("waitingTimeInSeconds", waitingTimeInSeconds).
 					Msg("Close to the window, waiting until next submission window")
-				suite.Wait(correctedTimeDistanceInSeconds)
+				suite.Wait(waitingTimeInSeconds)
 			} else {
 				// Far distance, bigger waits until the submission window opens
-				correctedTimeDistanceInSeconds, err := calculateTimeDistanceInSeconds(
+				waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
 					distanceUntilNextEpoch,
 					suite.Node.Wallet.BlockDurationEstimated,
 					suite.Node.Wallet.WindowCorrectionFactor,
@@ -394,9 +395,9 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 					Str("actorType", params.ActorType).
 					Int64("currentBlockHeight", currentBlockHeight).
 					Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
-					Int64("correctedTimeDistanceInSeconds", correctedTimeDistanceInSeconds).
+					Int64("waitingTimeInSeconds", waitingTimeInSeconds).
 					Msg("Waiting until the submission window opens - far distance")
-				suite.Wait(correctedTimeDistanceInSeconds)
+				suite.Wait(waitingTimeInSeconds)
 			}
 		}
 	}
