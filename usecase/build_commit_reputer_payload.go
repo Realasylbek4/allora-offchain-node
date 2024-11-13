@@ -210,11 +210,10 @@ func (suite *UseCaseSuite) SignReputerValueBundle(valueBundle *emissionstypes.Va
 		return &emissionstypes.ReputerValueBundle{}, errorsmod.Wrapf(err, "error marshalling valueBundle")
 	}
 	sig, pk, err := suite.Node.Chain.Client.Context().Keyring.Sign(suite.Node.Chain.Account.Name, protoBytesIn, signing.SignMode_SIGN_MODE_DIRECT)
-	pkStr := hex.EncodeToString(pk.Bytes())
 	if err != nil {
 		return &emissionstypes.ReputerValueBundle{}, errorsmod.Wrapf(err, "error signing valueBundle")
 	}
-
+	pkStr := hex.EncodeToString(pk.Bytes())
 	reputerValueBundle := &emissionstypes.ReputerValueBundle{
 		ValueBundle: valueBundle,
 		Signature:   sig,
