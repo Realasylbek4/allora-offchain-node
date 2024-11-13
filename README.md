@@ -123,7 +123,9 @@ Zone Breakdown (example numbers):
   - Near Zone: More frequent checks with randomization for fair participation
   - Submissions are separated - they must happen within the submission window
 
+### Random offset
 
+The node introduces a random offset to the submission time to avoid the thundering herd problem alleviating mempool congestion.
 
 ## How to configure
 

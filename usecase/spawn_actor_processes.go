@@ -147,7 +147,7 @@ func calculateTimeDistanceInSeconds(distanceUntilNextEpoch int64, blockDurationA
 }
 
 // Generates a conservative random offset within the submission window
-func generateFairOffset(submissionWindow int64) int64 {
+func generateRandomOffset(submissionWindow int64) int64 {
 	// Ensure the random number generator is seeded
 	source := rand.NewSource(uint64(time.Now().UnixNano()))
 	rng := rand.New(source)
@@ -335,7 +335,8 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 			distanceUntilNextEpoch := epochEnd - currentBlockHeight
 			if distanceUntilNextEpoch <= minBlocksToCheck {
 				// Close distance, check more closely until the submission window opens
-				offset := generateFairOffset(params.SubmissionWindowLength)
+				// Introduces a random offset to avoid thundering herd problem
+				offset := generateRandomOffset(params.SubmissionWindowLength)
 				closeBlockDistance := distanceUntilNextEpoch + offset
 				waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
 					closeBlockDistance,

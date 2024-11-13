@@ -172,7 +172,7 @@ func TestGenerateFairRandomOffset(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sum := int64(0)
 			for i := 0; i < test.iterations; i++ {
-				result := generateFairOffset(test.workerSubmissionWindow)
+				result := generateRandomOffset(test.workerSubmissionWindow)
 				assert.GreaterOrEqual(t, result, test.expectedMin, "Result should be greater than or equal to the minimum value")
 				assert.LessOrEqual(t, result, test.expectedMax, "Result should be less than or equal to the maximum value")
 				sum += result
