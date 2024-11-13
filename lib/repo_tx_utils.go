@@ -68,7 +68,6 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 					time.Sleep(time.Duration(node.Wallet.AccountSequenceRetryDelay) * time.Second)
 					return ERROR_PROCESSING_CONTINUE, nil
 				case int(sdkerrors.ErrInsufficientFee.ABCICode()):
-					log.Warn().Str("msg", infoMsg).Msg("Insufficient fee")
 					return ERROR_PROCESSING_FEES, nil
 				case int(sdkerrors.ErrTxTooLarge.ABCICode()):
 					return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "tx too large")
@@ -81,7 +80,7 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 				}
 			}
 		} else {
-			log.Error().Str("msg", infoMsg).Msg("Unmatched error format, cannot classify as ABCI error")
+			log.Warn().Str("msg", infoMsg).Msg("Unmatched error format, cannot classify as ABCI error")
 		}
 	}
 
@@ -120,8 +119,8 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 		log.Debug().Msgf("SendDataWithRetry iteration started (%d/%d)", retryCount, node.Wallet.MaxRetries)
 		// Create tx without fees
 		txOptions := cosmosclient.TxOptions{}
-		if globalExpectedSeqNum > 0 {
-			log.Info().
+		if globalExpectedSeqNum > 0 && node.Chain.Client.TxFactory.Sequence() != globalExpectedSeqNum {
+			log.Debug().
 				Uint64("expected", globalExpectedSeqNum).
 				Uint64("current", node.Chain.Client.TxFactory.Sequence()).
 				Msg("Resetting sequence to expected from previous sequence errors")
@@ -198,6 +197,7 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 			}
 		}
 
+		log.Trace().Msg("Creation of tx successful, broadcasting tx")
 		// Broadcast tx
 		txResponse, err := txService.Broadcast(ctx)
 		if err == nil {
@@ -222,7 +222,7 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 			continue
 		case ERROR_PROCESSING_FEES:
 			// Error has not been handled, just mark as recalculate fees on this iteration
-			log.Debug().Msg("Marking fee recalculation on tx broadcasting")
+			log.Info().Msg("Insufficient fees, marking fee recalculation on tx broadcasting for retrial")
 			recalculateFees += 1
 			continue
 		default:

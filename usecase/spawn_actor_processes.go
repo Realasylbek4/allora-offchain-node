@@ -10,7 +10,6 @@ import (
 
 	errorsmod "cosmossdk.io/errors"
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
-	"github.com/cosmos/cosmos-sdk/types/query"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/exp/rand"
 )
@@ -83,15 +82,7 @@ func (suite *UseCaseSuite) Spawn() {
 
 // Attempts to build and commit a worker payload for a given nonce
 func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestNonceHeightActedUpon int64) (int64, error) {
-	latestOpenWorkerNonce, err := lib.QueryDataWithRetry(
-		context.Background(),
-		suite.Node.Wallet.MaxRetries,
-		time.Duration(suite.Node.Wallet.RetryDelay)*time.Second,
-		func(ctx context.Context, req query.PageRequest) (*emissionstypes.Nonce, error) {
-			return suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
-		},
-		query.PageRequest{}, // Empty page request as GetLatestOpenWorkerNonceByTopicId doesn't use pagination
-	)
+	latestOpenWorkerNonce, err := suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
 
 	if err != nil {
 		log.Warn().Err(err).Uint64("topicId", worker.TopicId).Msg("Error getting latest open worker nonce on topic - node availability issue?")
@@ -119,15 +110,7 @@ func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestN
 }
 
 func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, latestNonceHeightActedUpon int64) (int64, error) {
-	nonce, err := lib.QueryDataWithRetry(
-		context.Background(),
-		suite.Node.Wallet.MaxRetries,
-		time.Duration(suite.Node.Wallet.RetryDelay)*time.Second,
-		func(ctx context.Context, req query.PageRequest) (*emissionstypes.Nonce, error) {
-			return suite.Node.GetOldestReputerNonceByTopicId(reputer.TopicId)
-		},
-		query.PageRequest{}, // Empty page request as GetOldestReputerNonceByTopicId doesn't use pagination
-	)
+	nonce, err := suite.Node.GetOldestReputerNonceByTopicId(reputer.TopicId)
 
 	if err != nil {
 		log.Warn().Err(err).Uint64("topicId", reputer.TopicId).Msg("Error getting latest open reputer nonce on topic - node availability issue?")
@@ -163,7 +146,7 @@ func calculateTimeDistanceInSeconds(distanceUntilNextEpoch int64, blockDurationA
 	return int64(math.Round(correctedTimeDistance)), nil
 }
 
-// Generates a random offset within the submission window
+// Generates a conservative random offset within the submission window
 func generateFairOffset(submissionWindow int64) int64 {
 	// Ensure the random number generator is seeded
 	source := rand.NewSource(uint64(time.Now().UnixNano()))
@@ -184,13 +167,13 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 	// Handle registration
 	registered := suite.Node.RegisterWorkerIdempotently(worker)
 	if !registered {
-		log.Error().Uint64("topicId", worker.TopicId).Msg("Failed to register worker for topic")
+		log.Fatal().Uint64("topicId", worker.TopicId).Msg("Failed to register worker for topic, exiting")
 		return
 	}
 	log.Debug().Uint64("topicId", worker.TopicId).Msg("Worker registered")
 
 	// Using the helper function
-	topicInfo, err := queryTopicInfo(suite, worker, "worker")
+	topicInfo, err := queryTopicInfo(suite, worker, "worker", "topic info: worker")
 	if err != nil {
 		log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Failed to get topic info for worker")
 		return
@@ -214,13 +197,13 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 	// Handle registration and staking
 	registeredAndStaked := suite.Node.RegisterAndStakeReputerIdempotently(reputer)
 	if !registeredAndStaked {
-		log.Error().Uint64("topicId", reputer.TopicId).Msg("Failed to register or sufficiently stake reputer for topic")
+		log.Fatal().Uint64("topicId", reputer.TopicId).Msg("Failed to register or sufficiently stake reputer for topic")
 		return
 	}
 	log.Debug().Uint64("topicId", reputer.TopicId).Msg("Reputer registered and staked")
 
 	// Using the helper function
-	topicInfo, err := queryTopicInfo(suite, reputer, "reputer")
+	topicInfo, err := queryTopicInfo(suite, reputer, "reputer", "topic info: reputer")
 	if err != nil {
 		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to get topic info for reputer")
 		return
@@ -245,7 +228,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 		Str("actorType", params.ActorType).
 		Msg("Running actor process for topic")
 
-	topicInfo, err := queryTopicInfo(suite, params.Config, params.ActorType)
+	topicInfo, err := queryTopicInfo(suite, params.Config, params.ActorType, "topic info: actor process")
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -261,7 +244,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 	var currentBlockHeight int64
 
 	for {
-		log.Debug().Msg("Start iteration, querying latest block")
+		log.Trace().Msg("Start iteration, querying latest block")
 		// Query the latest block
 		status, err := suite.Node.Chain.Client.Status(context.Background())
 		if err != nil {
@@ -271,7 +254,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 		}
 		currentBlockHeight = status.SyncInfo.LatestBlockHeight
 
-		topicInfo, err := queryTopicInfo(suite, params.Config, params.ActorType)
+		topicInfo, err := queryTopicInfo(suite, params.Config, params.ActorType, "topic info: actor process")
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -316,7 +299,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 				return
 			}
 
-			log.Debug().
+			log.Info().
 				Uint64("topicId", uint64(params.Config.GetTopicId())).
 				Str("actorType", params.ActorType).
 				Int64("currentBlockHeight", currentBlockHeight).
@@ -364,7 +347,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 						Msg("Error calculating close distance to epochLength")
 					return
 				}
-				log.Debug().
+				log.Info().
 					Uint64("topicId", uint64(params.Config.GetTopicId())).
 					Str("actorType", params.ActorType).
 					Int64("SubmissionWindowLength", params.SubmissionWindowLength).
@@ -390,7 +373,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 						Msg("Error calculating far distance to epochLength")
 					return
 				}
-				log.Debug().
+				log.Info().
 					Uint64("topicId", uint64(params.Config.GetTopicId())).
 					Str("actorType", params.ActorType).
 					Int64("currentBlockHeight", currentBlockHeight).
@@ -404,20 +387,14 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 }
 
 // Queries the topic info for a given actor type and wallet params from suite
+// Wrapper over NodeConfig.GetTopicInfo() with generic config type
 func queryTopicInfo[T lib.TopicActor](
 	suite *UseCaseSuite,
 	config T,
 	actorType string,
+	infoMsg string,
 ) (*emissionstypes.Topic, error) {
-	topicInfo, err := lib.QueryDataWithRetry(
-		context.Background(),
-		suite.Node.Wallet.MaxRetries,
-		time.Duration(suite.Node.Wallet.RetryDelay)*time.Second,
-		func(ctx context.Context, req query.PageRequest) (*emissionstypes.Topic, error) {
-			return suite.Node.GetTopicInfo(config.GetTopicId())
-		},
-		query.PageRequest{},
-	)
+	topicInfo, err := suite.Node.GetTopicInfo(config.GetTopicId())
 	if err != nil {
 		return nil, errorsmod.Wrapf(err, "failed to get topic info")
 	}
