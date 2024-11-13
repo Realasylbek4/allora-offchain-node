@@ -222,6 +222,8 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 }
 
 // Function that runs the actor process for a given topic and actor type
+// This mechanism is used to handle the submission of payloads for both workers and reputers,
+// using ActorProcessParams to handle the different configurations and functions needed for each actor type
 func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessParams[T]) {
 	log.Debug().
 		Uint64("topicId", uint64(params.Config.GetTopicId())).
