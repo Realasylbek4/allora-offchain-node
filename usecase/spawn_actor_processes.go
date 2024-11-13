@@ -30,7 +30,7 @@ type ActorProcessParams[T lib.TopicActor] struct {
 	// Configuration for the actor (Worker or Reputer)
 	Config T
 	// Function to process payloads (processWorkerPayload or processReputerPayload)
-	ProcessPayload func(T, int64) (int64, error)
+	ProcessPayload func(T, int64, uint64) (int64, error)
 	// Function to get nonces (GetLatestOpenWorkerNonceByTopicId or GetOldestReputerNonceByTopicId)
 	GetNonce func(emissionstypes.TopicId) (*emissionstypes.Nonce, error)
 	// Window length used to determine when we're near submission time
@@ -81,7 +81,7 @@ func (suite *UseCaseSuite) Spawn() {
 }
 
 // Attempts to build and commit a worker payload for a given nonce
-func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestNonceHeightActedUpon int64) (int64, error) {
+func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestNonceHeightActedUpon int64, timeoutHeight uint64) (int64, error) {
 	latestOpenWorkerNonce, err := suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
 
 	if err != nil {
@@ -93,7 +93,7 @@ func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestN
 		log.Debug().Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).
 			Msg("Building and committing worker payload for topic")
 
-		err := suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce)
+		err := suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce, timeoutHeight)
 		if err != nil {
 			return latestNonceHeightActedUpon, errorsmod.Wrapf(err, "error building and committing worker payload for topic")
 		}
@@ -109,7 +109,7 @@ func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestN
 	}
 }
 
-func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, latestNonceHeightActedUpon int64) (int64, error) {
+func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, latestNonceHeightActedUpon int64, timeoutHeight uint64) (int64, error) {
 	nonce, err := suite.Node.GetOldestReputerNonceByTopicId(reputer.TopicId)
 
 	if err != nil {
@@ -121,7 +121,7 @@ func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, late
 		log.Debug().Uint64("topicId", reputer.TopicId).Int64("BlockHeight", nonce.BlockHeight).
 			Msg("Building and committing reputer payload for topic")
 
-		err := suite.BuildCommitReputerPayload(reputer, nonce.BlockHeight)
+		err := suite.BuildCommitReputerPayload(reputer, nonce.BlockHeight, timeoutHeight)
 		if err != nil {
 			return latestNonceHeightActedUpon, errorsmod.Wrapf(err, "error building and committing reputer payload for topic")
 		}
@@ -271,11 +271,12 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 
 		epochLastEnded := topicInfo.EpochLastEnded
 		epochEnd := epochLastEnded + epochLength
+		timeoutHeight := epochLastEnded + params.SubmissionWindowLength
 
 		// Check if block is within the submission window
 		if currentBlockHeight-epochLastEnded <= params.SubmissionWindowLength {
 			// Within the submission window, attempt to process payload
-			latestNonceHeightSentTxFor, err = params.ProcessPayload(params.Config, latestNonceHeightSentTxFor)
+			latestNonceHeightSentTxFor, err = params.ProcessPayload(params.Config, latestNonceHeightSentTxFor, uint64(timeoutHeight))
 			if err != nil {
 				log.Error().
 					Err(err).

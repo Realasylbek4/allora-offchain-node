@@ -18,7 +18,7 @@ import (
 // Get the reputer's values at the block from the chain
 // Compute loss bundle with the reputer provided Loss function and ground truth
 // sign and commit to chain
-func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, nonce lib.BlockHeight) error {
+func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, nonce lib.BlockHeight, timeoutHeight uint64) error {
 	ctx := context.Background()
 
 	valueBundle, err := suite.Node.GetReputerValuesAtBlock(reputer.TopicId, nonce)
@@ -62,7 +62,7 @@ func (suite *UseCaseSuite) BuildCommitReputerPayload(reputer lib.ReputerConfig, 
 		log.Debug().Uint64("topicId", reputer.TopicId).Msgf("Sending InsertReputerPayload to chain %s", string(reqJSON))
 	}
 	if suite.Node.Wallet.SubmitTx {
-		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Reputer Data to chain")
+		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Reputer Data to chain", timeoutHeight)
 		if err != nil {
 			return errorsmod.Wrapf(err, "error sending Reputer Data to chain, topic: %d, blockHeight: %d", reputer.TopicId, nonce)
 		}
