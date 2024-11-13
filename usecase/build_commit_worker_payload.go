@@ -15,7 +15,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 )
 
-func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, nonce *emissionstypes.Nonce) error {
+func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, nonce *emissionstypes.Nonce, timeoutHeight uint64) error {
 	ctx := context.Background()
 
 	if worker.InferenceEntrypoint == nil && worker.ForecastEntrypoint == nil {
@@ -74,7 +74,7 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 	}
 
 	if suite.Node.Wallet.SubmitTx {
-		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Worker Data to chain")
+		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Worker Data to chain", timeoutHeight)
 		if err != nil {
 			return errorsmod.Wrapf(err, "Error sending Worker Data to chain, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 		}

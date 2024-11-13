@@ -48,7 +48,7 @@ func (node *NodeConfig) RegisterWorkerIdempotently(config WorkerConfig) bool {
 		Owner:     node.Chain.Address,
 		IsReputer: false,
 	}
-	res, err := node.SendDataWithRetry(ctx, msg, "Register worker node")
+	res, err := node.SendDataWithRetry(ctx, msg, "Register worker node", 0)
 	if err != nil {
 		txHash := ""
 		if res != nil {
@@ -105,7 +105,7 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 			Owner:     node.Chain.Address,
 			IsReputer: true,
 		}
-		res, err := node.SendDataWithRetry(ctx, msgRegister, "Register reputer node")
+		res, err := node.SendDataWithRetry(ctx, msgRegister, "Register reputer node", 0)
 		if err != nil {
 			txHash := ""
 			if res != nil {
@@ -145,7 +145,7 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 		Amount:  minStake.Sub(stake),
 		TopicId: config.TopicId,
 	}
-	res, err := node.SendDataWithRetry(ctx, msgAddStake, "Add reputer stake")
+	res, err := node.SendDataWithRetry(ctx, msgAddStake, "Add reputer stake", 0)
 	if err != nil {
 		txHash := ""
 		if res != nil {
