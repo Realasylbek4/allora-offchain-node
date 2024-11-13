@@ -30,6 +30,8 @@ func initLogger() {
 	logLevel := strings.ToLower(os.Getenv("LOG_LEVEL"))
 
 	switch logLevel {
+	case "trace":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
 	case "debug":
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	case "info":
