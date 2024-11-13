@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -58,6 +59,9 @@ func (node *NodeConfig) RegisterWorkerIdempotently(config WorkerConfig) bool {
 		return false
 	}
 
+	// Give time for the tx to be included in a block
+	log.Debug().Int64("delay", node.Wallet.RetryDelay).Msg("Waiting to check registration status to be included in a block...")
+	time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
 	isRegistered, err = node.IsWorkerRegistered(config.TopicId)
 	if err != nil {
 		log.Error().Err(err).Msg("Could not check if the node is already registered for topic as worker, skipping")
@@ -115,6 +119,9 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 			return false
 		}
 
+		// Give time for the tx to be included in a block
+		log.Debug().Int64("delay", node.Wallet.RetryDelay).Msg("Waiting to check registration status to be included in a block...")
+		time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
 		isRegistered, err = node.IsReputerRegistered(config.TopicId)
 		if err != nil {
 			log.Error().Err(err).Msg("Could not check if the node is already registered for topic as reputer, skipping")
@@ -155,6 +162,9 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 		return false
 	}
 
+	// Give time for the tx to be included in a block
+	log.Debug().Int64("delay", node.Wallet.RetryDelay).Msg("Waiting to check stake status to be included in a block...")
+	time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
 	stake, err = node.GetReputerStakeInTopic(config.TopicId, node.Chain.Address)
 	if err != nil {
 		log.Error().Err(err).Msg("Could not check if the reputer node has enough balance to stake, skipping")
