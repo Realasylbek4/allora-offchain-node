@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## v0.6.0
 
 ### Added
-* [#66](https://github.com/allora-network/allora-offchain-node/pull/66) Smart worker detection of submission windows + persistent error management
+* [#66](https://github.com/allora-network/allora-offchain-node/pull/66) Smart worker detection of submission windows + persistent error management + query retrials + reg/stake robustness + improved logging
 
 ### Removed
 
