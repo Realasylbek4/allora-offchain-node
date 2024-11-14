@@ -23,7 +23,7 @@ const NUM_SUBMISSION_WINDOWS_FOR_SUBMISSION_NEARNESS int64 = 2
 const NEARNESS_CORRECTION_FACTOR float64 = 1.0
 
 // Minimum wait time between status checks
-const WAIT_TIME_STATUS_CHECKS int64 = 1
+const WAIT_TIME_STATUS_CHECKS int64 = 2
 
 // ActorProcessParams encapsulates the configuration needed for running actor processes
 type ActorProcessParams[T lib.TopicActor] struct {
