@@ -68,14 +68,6 @@ func requestEndpoint(url string) (string, error) {
 	return string(body), nil
 }
 
-// Expects an inference as a string scalar value
-func (a *AlloraAdapter) CalcInference(node lib.WorkerConfig, blockHeight int64) (string, error) {
-	urlTemplate := node.Parameters["InferenceEndpoint"]
-	url := replaceExtendedPlaceholders(urlTemplate, node.Parameters, blockHeight, node.TopicId)
-	log.Debug().Str("url", url).Msg("Inference")
-	return requestEndpoint(url)
-}
-
 // parseJSONToNodeValues parses the incoming JSON string and returns a slice of NodeValue.
 func parseJSONToNodeValues(jsonStr string) ([]lib.NodeValue, error) {
 	// Define a map to hold the parsed JSON data.
@@ -105,11 +97,19 @@ func parseJSONToNodeValues(jsonStr string) ([]lib.NodeValue, error) {
 	return nodeValues, nil
 }
 
+// Expects an inference as a string scalar value
+func (a *AlloraAdapter) CalcInference(node lib.WorkerConfig, blockHeight int64) (string, error) {
+	urlTemplate := node.Parameters["InferenceEndpoint"]
+	url := replaceExtendedPlaceholders(urlTemplate, node.Parameters, blockHeight, node.TopicId)
+	log.Debug().Str("url", url).Msg("Inference endpoint")
+	return requestEndpoint(url)
+}
+
 // Expects forecast as a json array of NodeValue
 func (a *AlloraAdapter) CalcForecast(node lib.WorkerConfig, blockHeight int64) ([]lib.NodeValue, error) {
 	urlTemplate := node.Parameters["ForecastEndpoint"]
 	url := replaceExtendedPlaceholders(urlTemplate, node.Parameters, blockHeight, node.TopicId)
-	log.Info().Str("url", url).Msg("Forecasts endpoint")
+	log.Debug().Str("url", url).Msg("Forecasts endpoint")
 
 	forecastsAsJsonString, err := requestEndpoint(url)
 	if err != nil {
@@ -203,7 +203,7 @@ func (a *AlloraAdapter) LossFunction(node lib.ReputerConfig, groundTruth string,
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	log.Info().Str("url", url).Str("Loss", result.Loss).Msg("Calculated loss value from external endpoint")
+	log.Debug().Str("url", url).Str("Loss", result.Loss).Msg("Calculated loss value from external endpoint")
 	return result.Loss, nil
 }
 
@@ -214,7 +214,7 @@ func (a *AlloraAdapter) IsLossFunctionNeverNegative(node lib.ReputerConfig, opti
 	}
 	// Use /is_never_negative endpoint of loss-functions service
 	url = fmt.Sprintf("%s/is_never_negative", url)
-	log.Debug().Str("url", url).Msg("Checking if loss function is never negative")
+	log.Debug().Str("url", url).Msg("Checking if loss function is never negative - endpoint")
 
 	// Prepare the request payload
 	payload := map[string]interface{}{
@@ -260,7 +260,7 @@ func (a *AlloraAdapter) IsLossFunctionNeverNegative(node lib.ReputerConfig, opti
 		return false, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	log.Info().Str("url", url).Interface("options", options).Bool("IsNeverNegative", result.IsNeverNegative).Msg("Checked if loss function is never negative")
+	log.Debug().Str("url", url).Interface("options", options).Bool("IsNeverNegative", result.IsNeverNegative).Msg("Checked if loss function is never negative")
 	return result.IsNeverNegative, nil
 }
 
