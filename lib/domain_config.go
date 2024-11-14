@@ -1,11 +1,20 @@
 package lib
 
 import (
+	"errors"
+	"fmt"
+
 	emissions "github.com/allora-network/allora-chain/x/emissions/types"
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosaccount"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
-	"github.com/rs/zerolog/log"
+)
+
+const (
+	WindowCorrectionFactorSuggestedMin = 0.5
+	BlockDurationEstimatedMin          = 1.0
+	RetryDelayMin                      = 1
+	AccountSequenceRetryDelayMin       = 1
 )
 
 // Properties manually provided by the user as part of UserConfig
@@ -23,6 +32,8 @@ type WalletConfig struct {
 	RetryDelay                int64   // number of seconds to wait between retries (general case)
 	AccountSequenceRetryDelay int64   // number of seconds to wait between retries in case of account sequence error
 	SubmitTx                  bool    // useful for dev/testing. set to false to run in dry-run processes without committing to the chain
+	BlockDurationEstimated    float64 // estimated average block duration in seconds
+	WindowCorrectionFactor    float64 // correction factor for the time estimation, suggested range 0.7-0.9.
 }
 
 // Properties auto-generated based on what the user has provided in WalletConfig fields of UserConfig
@@ -36,14 +47,22 @@ type ChainConfig struct {
 	AddressPrefix        string // prefix for the allora addresses
 }
 
+type TopicActor interface {
+	GetTopicId() emissions.TopicId
+}
+
 type WorkerConfig struct {
 	TopicId                 emissions.TopicId
 	InferenceEntrypointName string
 	InferenceEntrypoint     AlloraAdapter
 	ForecastEntrypointName  string
-	ForecastEntrypoint      AlloraAdapter
-	LoopSeconds             int64             // seconds to wait between attempts to get next worker nonce
+	ForecastEntrypoint      AlloraAdapter     // seconds to wait between attempts to get next worker nonce
 	Parameters              map[string]string // Map for variable configuration values
+}
+
+// Implement TopicActor interface for WorkerConfig
+func (w WorkerConfig) GetTopicId() emissions.TopicId {
+	return w.TopicId
 }
 
 type ReputerConfig struct {
@@ -57,9 +76,13 @@ type ReputerConfig struct {
 	// This is idempotent in that it will not add more stake than specified here.
 	// Set to 0 to effectively disable this feature and use whatever stake has already been added.
 	MinStake               int64
-	LoopSeconds            int64                  // seconds to wait between attempts to get next reptuer nonces
 	GroundTruthParameters  map[string]string      // Map for variable configuration values
 	LossFunctionParameters LossFunctionParameters // Map for variable configuration values
+}
+
+// Implement TopicActor interface for ReputerConfig
+func (r ReputerConfig) GetTopicId() emissions.TopicId {
+	return r.TopicId
 }
 
 type LossFunctionParameters struct {
@@ -105,19 +128,59 @@ type ValueBundle struct {
 
 // Check that each assigned entrypoint in the user config actually can be used
 // for the intended purpose, else throw error
-func (c *UserConfig) ValidateConfigAdapters() {
+func (c *UserConfig) ValidateConfigAdapters() error {
+	// Validate wallet config
+	err := c.ValidateWalletConfig()
+	if err != nil {
+		return err
+	}
+	// Validate worker configs
 	for _, workerConfig := range c.Worker {
-		if workerConfig.InferenceEntrypoint != nil && !workerConfig.InferenceEntrypoint.CanInfer() {
-			log.Fatal().Interface("entrypoint", workerConfig.InferenceEntrypoint).Msg("Invalid inference entrypoint")
+		err := workerConfig.ValidateWorkerConfig()
+		if err != nil {
+			return err
 		}
-		if workerConfig.ForecastEntrypoint != nil && !workerConfig.ForecastEntrypoint.CanForecast() {
-			log.Fatal().Interface("entrypoint", workerConfig.ForecastEntrypoint).Msg("Invalid forecast entrypoint")
+	}
+	// Validate reputer configs
+	for _, reputerConfig := range c.Reputer {
+		err := reputerConfig.ValidateReputerConfig()
+		if err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func (c *UserConfig) ValidateWalletConfig() error {
+	if c.Wallet.WindowCorrectionFactor < WindowCorrectionFactorSuggestedMin {
+		return errors.New(fmt.Sprintf("window correction factor lower than suggested minimum: %f < %f", c.Wallet.WindowCorrectionFactor, WindowCorrectionFactorSuggestedMin))
+	}
+	if c.Wallet.BlockDurationEstimated < BlockDurationEstimatedMin {
+		return errors.New(fmt.Sprintf("block duration estimated lower than the minimum: %f < %f", c.Wallet.BlockDurationEstimated, BlockDurationEstimatedMin))
+	}
+	if c.Wallet.RetryDelay < RetryDelayMin {
+		return errors.New(fmt.Sprintf("retry delay lower than the minimum: %d < %d", c.Wallet.RetryDelay, RetryDelayMin))
+	}
+	if c.Wallet.AccountSequenceRetryDelay < AccountSequenceRetryDelayMin {
+		return errors.New(fmt.Sprintf("account sequence retry delay lower than the minimum: %d < %d", c.Wallet.AccountSequenceRetryDelay, AccountSequenceRetryDelayMin))
 	}
 
-	for _, reputerConfig := range c.Reputer {
-		if reputerConfig.GroundTruthEntrypoint != nil && !reputerConfig.GroundTruthEntrypoint.CanSourceGroundTruthAndComputeLoss() {
-			log.Fatal().Interface("entrypoint", reputerConfig.GroundTruthEntrypoint).Msg("Invalid loss entrypoint")
-		}
+	return nil
+}
+
+func (reputerConfig *ReputerConfig) ValidateReputerConfig() error {
+	if reputerConfig.GroundTruthEntrypoint != nil && !reputerConfig.GroundTruthEntrypoint.CanSourceGroundTruthAndComputeLoss() {
+		return errors.New("invalid loss entrypoint")
 	}
+	return nil
+}
+
+func (workerConfig *WorkerConfig) ValidateWorkerConfig() error {
+	if workerConfig.InferenceEntrypoint != nil && !workerConfig.InferenceEntrypoint.CanInfer() {
+		return errors.New("invalid inference entrypoint")
+	}
+	if workerConfig.ForecastEntrypoint != nil && !workerConfig.ForecastEntrypoint.CanForecast() {
+		return errors.New("invalid forecast entrypoint")
+	}
+	return nil
 }

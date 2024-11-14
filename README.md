@@ -25,7 +25,7 @@ from the root directory. This will:
 5. Run `docker compose up --build`. This will:
    - Run the both the offchain node and the source services, communicating through endpoints attached to the internal dns
 
-Please note that the environment variable will be created as bumdle of your config.json and allora account secrets, please make sure to remove every sectrets before commiting to remote git repository
+Please note that the environment variable will be created as bumdle of your config.json and allora account secrets, please make sure to remove every secrets before commiting to remote git repository
 
 
 ## How to run without docker
@@ -69,6 +69,64 @@ Some metrics has been provided for in the node. You can access them with port `:
 
 > Please note that we will keep updating the list as more metrics are being added
 
+## Cycle Example
+
+Visualization of timeline and submission windows for an actor, in this case, a worker. 
+Reputers have submission windows too, but they are fixed to be 1 full topic's epoch length.
+
+Example configuration:
+* Topic epoch length is 100 blocks
+* Topic submission window is 10 blocks
+* Near zone is 2 submission windows (20 blocks)
+
+```
+                                   Epoch N                                        Epoch N+1
+|---------|----------------------------------|-----------------------------------|--------→
+Block:    1000                              1100                                1200
+          ↑                                  ↑                                   ↑
+          Epoch Start                        Epoch End                          Next Epoch End
+          (& Submission                      & Next Epoch Start
+          Window Start)                      (& Next Submission
+                                            Window Start)
+
+Detailed View of Zones (assuming epoch length = 100 blocks):
+
+Block 1000  Block 1010                Block 1080    Block 1100
+    |-----------|--------------------------|--------------|
+    |←                Far Zone            →|←  Near Zone →|
+    |←   SW    →|
+(SW = Submission Window)
+
+Zone Breakdown (example numbers):
+• Epoch Length: 100 blocks
+• Submission Window: 100 blocks (coincides with epoch)
+• Near Zone: Last 20 blocks (NUM_SUBMISSION_WINDOWS_FOR_SUBMISSION_NEARNESS * WorkerSubmissionWindow)
+
+-------------------------------
+- Full cycle transition points
+  - Block 1000: Epoch N starts & Submission Window opens
+  - Block 1010: Submission Window closes. Waiting for next window, typically from far zone.
+  - Block 1080: Enters Near Zone (more frequent checks)
+  - Block 1100: Epoch N ends & Epoch N+1 starts
+
+```
+
+### Notes
+
+- Submissions
+  - Submissions are accepted within the submission window
+  - Submission window opens at epoch start
+- Waiting Zone Behavior
+  - The behaviour of the node when waiting for the submission window depends on its nearness to the submission window to reduce likelihood of missing a window.
+  - Far Zone: Longer intervals between checks, optimized for efficiency
+    - This is controlled by `blockDurationEstimated` and `windowCorrectionFactor`
+  - Near Zone: More frequent checks with randomization for fair participation
+  - Submissions are separated - they must happen within the submission window
+
+### Random offset
+
+The node introduces a random offset to the submission time to avoid the thundering herd problem alleviating mempool congestion.
+
 ## How to configure
 
 There are several ways to configure the node. In order of preference, you can do any of these: 
@@ -105,6 +163,13 @@ Note: when an account sequence mismatch is detected, the node will attempt to se
 - `accounSequenceRetryDelay`: For the "account sequence mismatch" error. 
 - `retryDelay`: For all other errors that need retry delays.
 
+
+### Smart Window Detection
+
+The node will automatically detect the submission window length for each topic on each actor type.
+This can be configured by the following settings in the config.json:
+* `blockDurationEstimated`: Estimated network block time in seconds. Minimum is 1.
+* `windowCorrectionFactor`: Correction factor to fine-tune the submission window length. Higher values optimize the number of calls for window checking. Minimum is 0.5.
 
 ## Configuration examples
 

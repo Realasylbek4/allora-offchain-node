@@ -38,7 +38,6 @@ func TestComputeWorkerBundle(t *testing.T) {
 					InferenceEntrypoint:     nil, // Will be set in the test
 					ForecastEntrypoint:      nil, // Will be set in the test
 					Parameters:              workerOptions,
-					LoopSeconds:             10,
 				},
 				InfererValue: "9.5",
 				ForecasterValues: []lib.NodeValue{
@@ -80,7 +79,6 @@ func TestComputeWorkerBundle(t *testing.T) {
 					InferenceEntrypoint:     nil,
 					ForecastEntrypoint:      nil,
 					Parameters:              workerOptions,
-					LoopSeconds:             10,
 				},
 				InfererValue: "invalid",
 				ForecasterValues: []lib.NodeValue{
@@ -102,7 +100,6 @@ func TestComputeWorkerBundle(t *testing.T) {
 					InferenceEntrypoint:     nil,
 					ForecastEntrypoint:      nil,
 					Parameters:              workerOptions,
-					LoopSeconds:             10,
 				},
 				InfererValue: "9.5",
 				ForecasterValues: []lib.NodeValue{

@@ -15,7 +15,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 )
 
-func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, nonce *emissionstypes.Nonce) error {
+func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, nonce *emissionstypes.Nonce, timeoutHeight uint64) error {
 	ctx := context.Background()
 
 	if worker.InferenceEntrypoint == nil && worker.ForecastEntrypoint == nil {
@@ -74,7 +74,7 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 	}
 
 	if suite.Node.Wallet.SubmitTx {
-		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Worker Data to chain")
+		_, err = suite.Node.SendDataWithRetry(ctx, req, "Send Worker Data to chain", timeoutHeight)
 		if err != nil {
 			return errorsmod.Wrapf(err, "Error sending Worker Data to chain, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
 		}
@@ -137,10 +137,10 @@ func (suite *UseCaseSuite) SignWorkerPayload(workerPayload *emissionstypes.Infer
 		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error marshalling workerPayload")
 	}
 	sig, pk, err := suite.Node.Chain.Client.Context().Keyring.Sign(suite.Node.Chain.Account.Name, protoBytesIn, signing.SignMode_SIGN_MODE_DIRECT)
-	pkStr := hex.EncodeToString(pk.Bytes())
 	if err != nil {
 		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error signing the InferenceForecastsBundle message")
 	}
+	pkStr := hex.EncodeToString(pk.Bytes())
 	// Create workerDataBundle with signature
 	workerDataBundle := &emissionstypes.WorkerDataBundle{
 		Worker:                             suite.Node.Wallet.Address,

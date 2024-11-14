@@ -2,42 +2,62 @@ package lib
 
 import (
 	"context"
+	"time"
 
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
+	"github.com/cosmos/cosmos-sdk/types/query"
 )
 
+// Gets the latest open worker nonce for a given topic, with retries
 func (node *NodeConfig) GetLatestOpenWorkerNonceByTopicId(topicId emissionstypes.TopicId) (*emissionstypes.Nonce, error) {
 	ctx := context.Background()
 
-	res, err := node.Chain.EmissionsQueryClient.GetUnfulfilledWorkerNonces(
+	resp, err := QueryDataWithRetry(
 		ctx,
-		&emissionstypes.GetUnfulfilledWorkerNoncesRequest{TopicId: topicId},
+		node.Wallet.MaxRetries,
+		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		func(ctx context.Context, req query.PageRequest) (*emissionstypes.GetUnfulfilledWorkerNoncesResponse, error) {
+			return node.Chain.EmissionsQueryClient.GetUnfulfilledWorkerNonces(ctx, &emissionstypes.GetUnfulfilledWorkerNoncesRequest{
+				TopicId: topicId,
+			})
+		},
+		query.PageRequest{},
+		"get open worker nonce",
 	)
 	if err != nil {
 		return &emissionstypes.Nonce{}, err
 	}
 
-	if len(res.Nonces.Nonces) == 0 {
-		return &emissionstypes.Nonce{}, err
+	if len(resp.Nonces.Nonces) == 0 {
+		return &emissionstypes.Nonce{}, nil
 	}
 	// Per `AddWorkerNonce()` in `allora-chain/x/emissions/keeper.go`, the latest nonce is first
-	return res.Nonces.Nonces[0], nil
+	return resp.Nonces.Nonces[0], nil
 }
 
-func (node *NodeConfig) GetOldestReputerNonceByTopicId(topicId emissionstypes.TopicId) (BlockHeight, error) {
+// Gets the oldest open reputer nonce for a given topic, with retries
+func (node *NodeConfig) GetOldestReputerNonceByTopicId(topicId emissionstypes.TopicId) (*emissionstypes.Nonce, error) {
 	ctx := context.Background()
 
-	res, err := node.Chain.EmissionsQueryClient.GetUnfulfilledReputerNonces(
+	resp, err := QueryDataWithRetry(
 		ctx,
-		&emissionstypes.GetUnfulfilledReputerNoncesRequest{TopicId: topicId},
+		node.Wallet.MaxRetries,
+		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		func(ctx context.Context, req query.PageRequest) (*emissionstypes.GetUnfulfilledReputerNoncesResponse, error) {
+			return node.Chain.EmissionsQueryClient.GetUnfulfilledReputerNonces(ctx, &emissionstypes.GetUnfulfilledReputerNoncesRequest{
+				TopicId: topicId,
+			})
+		},
+		query.PageRequest{},
+		"get open reputer nonce",
 	)
 	if err != nil {
-		return 0, err
+		return &emissionstypes.Nonce{}, err
 	}
 
-	if len(res.Nonces.Nonces) == 0 {
-		return 0, nil
+	if len(resp.Nonces.Nonces) == 0 {
+		return &emissionstypes.Nonce{}, nil
 	}
 	// Per `AddWorkerNonce()` in `allora-chain/x/emissions/keeper.go`, the oldest nonce is last
-	return res.Nonces.Nonces[len(res.Nonces.Nonces)-1].ReputerNonce.BlockHeight, nil
+	return resp.Nonces.Nonces[len(resp.Nonces.Nonces)-1].ReputerNonce, nil
 }

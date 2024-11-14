@@ -22,12 +22,21 @@ const ERROR_MESSAGE_DATA_ALREADY_SUBMITTED = "already submitted"
 const ERROR_MESSAGE_CANNOT_UPDATE_EMA = "cannot update EMA"
 const ERROR_MESSAGE_WAITING_FOR_NEXT_BLOCK = "waiting for next block" // This means tx is accepted in mempool but not yet included in a block
 const ERROR_MESSAGE_ACCOUNT_SEQUENCE_MISMATCH = "account sequence mismatch"
+const ERROR_MESSAGE_TIMEOUT_HEIGHT = "timeout height"
 const ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER = "error code:"
 const EXCESS_CORRECTION_IN_GAS = 20000
 
+// Error processing types
+// - "continue", nil: tx was not successful, but special error type. Handled, ready for retry
+// - "ok", nil: tx was successful, error handled and not re-raised
+// - "error", error: tx failed, with regular error type
+// - "fees": tx failed, because of insufficient fees
+// - "failure": tx failed, and should not be retried anymore
 const ERROR_PROCESSING_CONTINUE = "continue"
 const ERROR_PROCESSING_OK = "ok"
+const ERROR_PROCESSING_FEES = "fees"
 const ERROR_PROCESSING_ERROR = "error"
+const ERROR_PROCESSING_FAILURE = "failure"
 
 // calculateExponentialBackoffDelay returns a duration based on retry count and base delay
 func calculateExponentialBackoffDelay(baseDelay int64, retryCount int64) time.Duration {
@@ -35,10 +44,6 @@ func calculateExponentialBackoffDelay(baseDelay int64, retryCount int64) time.Du
 }
 
 // processError handles the error messages.
-// Returns:
-// - "continue", nil: tx was not successful, but special error type. Handled, ready for retry
-// - "ok", nil: tx was successful
-// - "error", error: tx failed, with regular error type
 func processError(err error, infoMsg string, retryCount int64, node *NodeConfig) (string, error) {
 	if strings.Contains(err.Error(), ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER) {
 		re := regexp.MustCompile(`error code: '(\d+)'`)
@@ -67,20 +72,21 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 					time.Sleep(time.Duration(node.Wallet.AccountSequenceRetryDelay) * time.Second)
 					return ERROR_PROCESSING_CONTINUE, nil
 				case int(sdkerrors.ErrInsufficientFee.ABCICode()):
-					log.Warn().Str("msg", infoMsg).Msg("Insufficient fee")
-					return ERROR_PROCESSING_CONTINUE, nil
+					return ERROR_PROCESSING_FEES, nil
 				case int(sdkerrors.ErrTxTooLarge.ABCICode()):
 					return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "tx too large")
 				case int(sdkerrors.ErrTxInMempoolCache.ABCICode()):
 					return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "tx already in mempool cache")
 				case int(sdkerrors.ErrInvalidChainID.ABCICode()):
 					return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "invalid chain-id")
+				case int(sdkerrors.ErrTxTimeoutHeight.ABCICode()):
+					return ERROR_PROCESSING_FAILURE, errorsmod.Wrapf(err, "tx timeout height")
 				default:
 					log.Info().Int("errorCode", errorCode).Str("msg", infoMsg).Msg("ABCI error, but not special case - regular retry")
 				}
 			}
 		} else {
-			log.Error().Str("msg", infoMsg).Msg("Unmatched error format, cannot classify as ABCI error")
+			log.Warn().Str("msg", infoMsg).Msg("Unmatched error format, cannot classify as ABCI error")
 		}
 	}
 
@@ -94,11 +100,14 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 		time.Sleep(time.Duration(node.Wallet.AccountSequenceRetryDelay) * time.Second)
 		return ERROR_PROCESSING_CONTINUE, nil
 	} else if strings.Contains(err.Error(), ERROR_MESSAGE_WAITING_FOR_NEXT_BLOCK) {
-		log.Warn().Str("msg", infoMsg).Msg("Tx accepted in mempool, it will be included in the following block(s) - not retrying")
+		log.Warn().Err(err).Str("msg", infoMsg).Msg("Tx accepted in mempool, it will be included in the following block(s) - not retrying")
 		return ERROR_PROCESSING_OK, nil
 	} else if strings.Contains(err.Error(), ERROR_MESSAGE_DATA_ALREADY_SUBMITTED) || strings.Contains(err.Error(), ERROR_MESSAGE_CANNOT_UPDATE_EMA) {
 		log.Warn().Err(err).Str("msg", infoMsg).Msg("Already submitted data for this epoch.")
 		return ERROR_PROCESSING_OK, nil
+	} else if strings.Contains(err.Error(), ERROR_MESSAGE_TIMEOUT_HEIGHT) {
+		log.Warn().Err(err).Str("msg", infoMsg).Msg("Tx failed because of timeout height")
+		return ERROR_PROCESSING_FAILURE, err
 	}
 
 	return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "failed to process error")
@@ -106,14 +115,32 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 
 // SendDataWithRetry attempts to send data, handling retries, with fee awareness.
 // Custom handling for different errors.
-func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg, infoMsg string) (*cosmosclient.Response, error) {
+func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg, infoMsg string, timeoutHeight uint64) (*cosmosclient.Response, error) {
 	var txResp *cosmosclient.Response
 	// Excess fees correction factor translated to fees using configured gas prices
 	excessFactorFees := float64(EXCESS_CORRECTION_IN_GAS) * node.Wallet.GasPrices
+	// Keep track of how many times fees need to be recalculated to avoid missing fee info between errors
+	recalculateFees := 0
+	// Use to keep track of expected sequence number between errors
+	globalExpectedSeqNum := uint64(0)
+
+	// Create tx options with timeout height if specified
+	if timeoutHeight > 0 {
+		log.Debug().Uint64("timeoutHeight", timeoutHeight).Msg("Setting timeout height for tx")
+		node.Chain.Client.TxFactory = node.Chain.Client.TxFactory.WithTimeoutHeight(timeoutHeight)
+	}
 
 	for retryCount := int64(0); retryCount <= node.Wallet.MaxRetries; retryCount++ {
 		log.Debug().Msgf("SendDataWithRetry iteration started (%d/%d)", retryCount, node.Wallet.MaxRetries)
+		// Create tx without fees
 		txOptions := cosmosclient.TxOptions{}
+		if globalExpectedSeqNum > 0 && node.Chain.Client.TxFactory.Sequence() != globalExpectedSeqNum {
+			log.Debug().
+				Uint64("expected", globalExpectedSeqNum).
+				Uint64("current", node.Chain.Client.TxFactory.Sequence()).
+				Msg("Resetting sequence to expected from previous sequence errors")
+			node.Chain.Client.TxFactory = node.Chain.Client.TxFactory.WithSequence(globalExpectedSeqNum)
+		}
 		txService, err := node.Chain.Client.CreateTxWithOptions(ctx, node.Chain.Account, txOptions, req)
 		if err != nil {
 			// Handle error on creation of tx, before broadcasting
@@ -130,8 +157,12 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				log.Info().Uint64("expected", expectedSeqNum).Uint64("current", currentSeqNum).Msg("Retrying resetting sequence from current to expected")
 				txService, err = node.Chain.Client.CreateTxWithOptions(ctx, node.Chain.Account, txOptions, req)
 				if err != nil {
-					return nil, errorsmod.Wrapf(err, "failed to reset sequence second time, exiting")
+					log.Error().Err(err).Str("msg", infoMsg).Msg("Failed to reset sequence second time, retrying with regular delay")
+					time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+					continue
 				}
+				// if creation is successful, make the expected sequence number persistent
+				globalExpectedSeqNum = expectedSeqNum
 			} else {
 				errorResponse, err := processError(err, infoMsg, retryCount, node)
 				switch errorResponse {
@@ -148,6 +179,12 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				case ERROR_PROCESSING_CONTINUE:
 					// Error has not been handled, just continue next iteration
 					continue
+				case ERROR_PROCESSING_FEES:
+					// Error has not been handled, just mark as recalculate fees on this iteration
+					log.Debug().Msg("Marking fee recalculation on tx creation")
+					recalculateFees += 1
+				case ERROR_PROCESSING_FAILURE:
+					return nil, errorsmod.Wrapf(err, "tx failed and not retried")
 				default:
 					return nil, errorsmod.Wrapf(err, "failed to process error")
 				}
@@ -157,11 +194,11 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 		}
 
 		// Handle fees if necessary
-		if node.Wallet.GasPrices > 0 {
+		if node.Wallet.GasPrices > 0 && recalculateFees > 0 {
 			// Precalculate fees
 			fees := uint64(float64(txService.Gas()+EXCESS_CORRECTION_IN_GAS) * node.Wallet.GasPrices)
-			// Add excess fees correction factor to increase with each retry
-			fees = fees + uint64(float64(retryCount+1)*excessFactorFees)
+			// Add excess fees correction factor to increase with each fee-problematic retry
+			fees = fees + uint64(float64(recalculateFees)*excessFactorFees)
 			// Limit fees to maxFees
 			if fees > node.Wallet.MaxFees {
 				log.Warn().Uint64("gas", txService.Gas()).Uint64("limit", node.Wallet.MaxFees).Msg("Gas limit exceeded, using maxFees instead")
@@ -177,6 +214,7 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 			}
 		}
 
+		log.Trace().Msg("Creation of tx successful, broadcasting tx")
 		// Broadcast tx
 		txResponse, err := txService.Broadcast(ctx)
 		if err == nil {
@@ -199,6 +237,13 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 		case ERROR_PROCESSING_CONTINUE:
 			// Error has not been handled, just continue next iteration
 			continue
+		case ERROR_PROCESSING_FEES:
+			// Error has not been handled, just mark as recalculate fees on this iteration
+			log.Info().Msg("Insufficient fees, marking fee recalculation on tx broadcasting for retrial")
+			recalculateFees += 1
+			continue
+		case ERROR_PROCESSING_FAILURE:
+			return nil, errorsmod.Wrapf(err, "tx failed and not retried")
 		default:
 			return nil, errorsmod.Wrapf(err, "failed to process error")
 		}

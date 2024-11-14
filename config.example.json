@@ -11,13 +11,14 @@
       "maxRetries": 5,
       "retryDelay": 3,
       "accountSequenceRetryDelay": 5,
-      "submitTx": true
+      "submitTx": true,
+      "blockDurationEstimated": 10,
+      "windowCorrectionFactor": 0.8
     },
     "worker": [
       {
         "topicId": 1,
         "inferenceEntrypointName": "api-worker-reputer",
-        "loopSeconds": 10,
         "parameters": {
           "InferenceEndpoint": "http://source:8000/inference/{Token}",
           "Token": "ETH"
@@ -29,7 +30,6 @@
         "topicId": 1,
         "groundTruthEntrypointName": "api-worker-reputer",
         "lossFunctionEntrypointName": "api-worker-reputer",
-        "loopSeconds": 30,
         "minStake": 100000,
         "groundTruthParameters": {
           "GroundTruthEndpoint": "http://localhost:8888/gt/{Token}/{BlockHeight}",

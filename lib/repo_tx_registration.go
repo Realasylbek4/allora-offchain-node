@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -17,10 +18,13 @@ func (node *NodeConfig) RegisterWorkerIdempotently(config WorkerConfig) bool {
 	isRegistered, err := node.IsWorkerRegistered(config.TopicId)
 	if err != nil {
 		log.Error().Err(err).Msg("Could not check if the node is already registered for topic as worker, skipping")
+		return false
 	}
 	if isRegistered {
 		log.Info().Uint64("topicId", config.TopicId).Msg("Worker node already registered for topic")
 		return true
+	} else {
+		log.Info().Uint64("topicId", config.TopicId).Msg("Worker node not yet registered for topic. Attempting registration...")
 	}
 
 	moduleParams, err := node.Chain.EmissionsQueryClient.GetParams(ctx, &emissionstypes.GetParamsRequest{})
@@ -45,7 +49,7 @@ func (node *NodeConfig) RegisterWorkerIdempotently(config WorkerConfig) bool {
 		Owner:     node.Chain.Address,
 		IsReputer: false,
 	}
-	res, err := node.SendDataWithRetry(ctx, msg, "Register worker node")
+	res, err := node.SendDataWithRetry(ctx, msg, "Register worker node", 0)
 	if err != nil {
 		txHash := ""
 		if res != nil {
@@ -55,7 +59,16 @@ func (node *NodeConfig) RegisterWorkerIdempotently(config WorkerConfig) bool {
 		return false
 	}
 
-	return true
+	// Give time for the tx to be included in a block
+	log.Debug().Int64("delay", node.Wallet.RetryDelay).Msg("Waiting to check registration status to be included in a block...")
+	time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+	isRegistered, err = node.IsWorkerRegistered(config.TopicId)
+	if err != nil {
+		log.Error().Err(err).Msg("Could not check if the node is already registered for topic as worker, skipping")
+		return false
+	}
+
+	return isRegistered
 }
 
 // True if the actor is ultimately, definitively registered for the specified topic with at least config.MinStake placed on topic, else False
@@ -67,6 +80,7 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 	isRegistered, err := node.IsReputerRegistered(config.TopicId)
 	if err != nil {
 		log.Error().Err(err).Msg("Could not check if the node is already registered for topic as reputer, skipping")
+		return false
 	}
 
 	if isRegistered {
@@ -95,7 +109,7 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 			Owner:     node.Chain.Address,
 			IsReputer: true,
 		}
-		res, err := node.SendDataWithRetry(ctx, msgRegister, "Register reputer node")
+		res, err := node.SendDataWithRetry(ctx, msgRegister, "Register reputer node", 0)
 		if err != nil {
 			txHash := ""
 			if res != nil {
@@ -105,7 +119,18 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 			return false
 		}
 
-		log.Info().Uint64("topicId", config.TopicId).Msg("Reputer node registered")
+		// Give time for the tx to be included in a block
+		log.Debug().Int64("delay", node.Wallet.RetryDelay).Msg("Waiting to check registration status to be included in a block...")
+		time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+		isRegistered, err = node.IsReputerRegistered(config.TopicId)
+		if err != nil {
+			log.Error().Err(err).Msg("Could not check if the node is already registered for topic as reputer, skipping")
+			return false
+		}
+		if !isRegistered {
+			log.Error().Uint64("topicId", config.TopicId).Msg("Reputer node not registered after all retries")
+			return false
+		}
 	}
 
 	stake, err := node.GetReputerStakeInTopic(config.TopicId, node.Chain.Address)
@@ -113,10 +138,13 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 		log.Error().Err(err).Msg("Could not check if the reputer node has enough balance to stake, skipping")
 		return false
 	}
+
 	minStake := cosmossdk_io_math.NewInt(config.MinStake)
 	if minStake.LTE(stake) {
 		log.Info().Msg("Reputer stake above minimum requested stake, skipping adding stake.")
 		return true
+	} else {
+		log.Info().Interface("stake", stake).Interface("minStake", minStake).Interface("stakeToAdd", minStake.Sub(stake)).Msg("Reputer stake below minimum requested stake, adding stake.")
 	}
 
 	msgAddStake := &emissionstypes.AddStakeRequest{
@@ -124,7 +152,7 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 		Amount:  minStake.Sub(stake),
 		TopicId: config.TopicId,
 	}
-	res, err := node.SendDataWithRetry(ctx, msgAddStake, "Add reputer stake")
+	res, err := node.SendDataWithRetry(ctx, msgAddStake, "Add reputer stake", 0)
 	if err != nil {
 		txHash := ""
 		if res != nil {
@@ -133,5 +161,19 @@ func (node *NodeConfig) RegisterAndStakeReputerIdempotently(config ReputerConfig
 		log.Error().Err(err).Uint64("topic", config.TopicId).Str("txHash", txHash).Msg("Could not stake the reputer node with the Allora blockchain in specified topic")
 		return false
 	}
+
+	// Give time for the tx to be included in a block
+	log.Debug().Int64("delay", node.Wallet.RetryDelay).Msg("Waiting to check stake status to be included in a block...")
+	time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+	stake, err = node.GetReputerStakeInTopic(config.TopicId, node.Chain.Address)
+	if err != nil {
+		log.Error().Err(err).Msg("Could not check if the reputer node has enough balance to stake, skipping")
+		return false
+	}
+	if stake.LT(minStake) {
+		log.Error().Interface("stake", stake).Interface("minStake", minStake).Msg("Reputer stake below minimum requested stake, skipping.")
+		return false
+	}
+
 	return true
 }
