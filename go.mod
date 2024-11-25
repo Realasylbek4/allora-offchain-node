@@ -8,7 +8,7 @@ go 1.22.5
 
 require (
 	cosmossdk.io/errors v1.0.1
-	cosmossdk.io/math v1.3.0
+	cosmossdk.io/math v1.4.0
 	github.com/allora-network/allora-chain v0.6.1-0.20241023012756-38bec6c36160
 	github.com/cosmos/cosmos-sdk v0.50.10
 	github.com/ignite/cli/v28 v28.5.3
@@ -16,6 +16,7 @@ require (
 	github.com/prometheus/client_golang v1.20.1
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
+	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 )
 
 require (
@@ -144,7 +145,6 @@ require (
 	go.etcd.io/bbolt v1.3.10 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
-	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8 // indirect
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
