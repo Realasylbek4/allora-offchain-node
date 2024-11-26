@@ -158,6 +158,7 @@ The wallet configuration is done in `config.json` under the `wallet` field.
 
 Error handling is done differently for different types of errors.
 Note: when an account sequence mismatch is detected, the node will attempt to set the expected sequence number and retry the transaction before broadcasting.
+Note: the node will check if the actor is whitelisted on worker setup and before submitting a payload.
 
 #### Retries 
 - `accounSequenceRetryDelay`: For the "account sequence mismatch" error. 
