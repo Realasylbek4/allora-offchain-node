@@ -81,6 +81,7 @@ func (suite *UseCaseSuite) Spawn() {
 }
 
 // Attempts to build and commit a worker payload for a given nonce
+// Returns the nonce height acted upon (the received one or the new one if any)
 func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestNonceHeightActedUpon int64, timeoutHeight uint64) (int64, error) {
 	latestOpenWorkerNonce, err := suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
 
@@ -90,10 +91,20 @@ func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestN
 	}
 
 	if latestOpenWorkerNonce.BlockHeight > latestNonceHeightActedUpon {
+		// Check if worker can submit
+		isWhitelisted, err := suite.Node.CanSubmitWorker(worker.TopicId, suite.Node.Wallet.Address)
+		if err != nil {
+			log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Failed to check if worker is whitelisted")
+			return latestNonceHeightActedUpon, err
+		}
+		if !isWhitelisted {
+			log.Error().Uint64("topicId", worker.TopicId).Msg("Worker is not whitelisted in topic, not submitting payload")
+			return latestOpenWorkerNonce.BlockHeight, nil
+		}
+
 		log.Debug().Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).
 			Msg("Building and committing worker payload for topic")
-
-		err := suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce, timeoutHeight)
+		err = suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce, timeoutHeight)
 		if err != nil {
 			return latestNonceHeightActedUpon, errorsmod.Wrapf(err, "error building and committing worker payload for topic")
 		}
@@ -118,10 +129,20 @@ func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, late
 	}
 
 	if nonce.BlockHeight > latestNonceHeightActedUpon {
+		// Check if reputer can submit
+		isWhitelisted, err := suite.Node.CanSubmitReputer(reputer.TopicId, suite.Node.Wallet.Address)
+		if err != nil {
+			log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to check if reputer is whitelisted")
+			return latestNonceHeightActedUpon, err
+		}
+		if !isWhitelisted {
+			log.Error().Uint64("topicId", reputer.TopicId).Msg("Reputer is not whitelisted in topic, not submitting payload")
+			return nonce.BlockHeight, nil
+		}
+
 		log.Debug().Uint64("topicId", reputer.TopicId).Int64("BlockHeight", nonce.BlockHeight).
 			Msg("Building and committing reputer payload for topic")
-
-		err := suite.BuildCommitReputerPayload(reputer, nonce.BlockHeight, timeoutHeight)
+		err = suite.BuildCommitReputerPayload(reputer, nonce.BlockHeight, timeoutHeight)
 		if err != nil {
 			return latestNonceHeightActedUpon, errorsmod.Wrapf(err, "error building and committing reputer payload for topic")
 		}
@@ -161,6 +182,7 @@ func generateRandomOffset(submissionWindow int64) int64 {
 	return offset
 }
 
+// Runs the worker process for a given worker config
 func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 	log.Info().Uint64("topicId", worker.TopicId).Msg("Running worker process for topic")
 
@@ -188,9 +210,22 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 		ActorType:              "worker",
 	}
 
+	// Check if worker is isWhitelisted
+	isWhitelisted, err := suite.Node.CanSubmitWorker(worker.TopicId, suite.Node.Wallet.Address)
+	if err != nil {
+		log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Failed to check if worker is whitelisted")
+		return
+	}
+	if !isWhitelisted {
+		log.Error().Uint64("topicId", worker.TopicId).Msg("Worker is not whitelisted in topic, exiting worker process")
+		return
+	}
+
+	// Run the actor process
 	runActorProcess(suite, params)
 }
 
+// Runs the reputer process for a given reputer config
 func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 	log.Debug().Uint64("topicId", reputer.TopicId).Msg("Running reputer process for topic")
 
@@ -218,6 +253,18 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 		ActorType:              "reputer",
 	}
 
+	// Check if reputer is isWhitelisted
+	isWhitelisted, err := suite.Node.CanSubmitReputer(reputer.TopicId, suite.Node.Wallet.Address)
+	if err != nil {
+		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to check if reputer is whitelisted")
+		return
+	}
+	if !isWhitelisted {
+		log.Error().Uint64("topicId", reputer.TopicId).Msg("Reputer is not whitelisted in topic, exiting reputer process")
+		return
+	}
+
+	// Run the actor process
 	runActorProcess(suite, params)
 }
 

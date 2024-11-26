@@ -24,6 +24,9 @@ const ERROR_MESSAGE_WAITING_FOR_NEXT_BLOCK = "waiting for next block" // This me
 const ERROR_MESSAGE_ACCOUNT_SEQUENCE_MISMATCH = "account sequence mismatch"
 const ERROR_MESSAGE_TIMEOUT_HEIGHT = "timeout height"
 const ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER = "error code:"
+const ERROR_MESSAGE_NOT_PERMITTED_TO_SUBMIT_PAYLOAD = "not permitted to submit payload"
+const ERROR_MESSAGE_NOT_PERMITTED_TO_ADD_STAKE = "not permitted to add stake"
+
 const EXCESS_CORRECTION_IN_GAS = 20000
 
 // Error processing types
@@ -107,6 +110,12 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 		return ERROR_PROCESSING_OK, nil
 	} else if strings.Contains(err.Error(), ERROR_MESSAGE_TIMEOUT_HEIGHT) {
 		log.Warn().Err(err).Str("msg", infoMsg).Msg("Tx failed because of timeout height")
+		return ERROR_PROCESSING_FAILURE, err
+	} else if strings.Contains(err.Error(), ERROR_MESSAGE_NOT_PERMITTED_TO_SUBMIT_PAYLOAD) {
+		log.Warn().Err(err).Str("msg", infoMsg).Msg("Actor is not permitted to submit payload")
+		return ERROR_PROCESSING_FAILURE, err
+	} else if strings.Contains(err.Error(), ERROR_MESSAGE_NOT_PERMITTED_TO_ADD_STAKE) {
+		log.Warn().Err(err).Str("msg", infoMsg).Msg("Actor is not permitted to add stake")
 		return ERROR_PROCESSING_FAILURE, err
 	}
 
