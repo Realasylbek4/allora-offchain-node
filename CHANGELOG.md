@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * [#82](https://github.com/allora-network/allora-offchain-node/pull/82) Adjust adapter log levels
 * [#83](https://github.com/allora-network/allora-offchain-node/pull/83) Added missing params to .env example
+* [#88](https://github.com/allora-network/allora-offchain-node/pull/88) New topic case + handle window-related errorcodes
 
 ### Security
 
