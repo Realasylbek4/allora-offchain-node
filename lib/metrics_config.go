@@ -3,6 +3,7 @@ package lib
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -31,7 +32,7 @@ func (metrics *Metrics) RegisterMetricsCounters() {
 
 	for _, counter := range metrics.Counters {
 		counterVec := prometheus.NewCounterVec(
-			prometheus.CounterOpts{
+			prometheus.CounterOpts{ // nolint: exhaustruct
 				Name: counter.Name,
 				Help: counter.Help,
 			},
@@ -47,7 +48,15 @@ func (metrics Metrics) StartMetricsServer(port string) {
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		log.Info().Msgf("Starting metrics server on %s", port)
-		if err := http.ListenAndServe(port, nil); err != nil {
+		srv := &http.Server{ // nolint: exhaustruct
+			Addr:              port,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       60 * time.Second,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+
+		if err := srv.ListenAndServe(); err != nil {
 			log.Error().Err(err).Msg("Could not start metric server")
 			return
 		}

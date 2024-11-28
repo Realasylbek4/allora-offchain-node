@@ -17,7 +17,7 @@ const (
 )
 
 // A struct that holds the name and help text for a prometheus counter
-var COUNTER_DATA = []MetricsCounter{
+var CounterData = []MetricsCounter{
 	{InferenceRequestCount, "The total number of times worker requests inference from source"},
 	{ForecastRequestCount, "The total number of times worker requests forecast from source"},
 	{TruthRequestCount, "The total number of times reputer requests truth from source"},

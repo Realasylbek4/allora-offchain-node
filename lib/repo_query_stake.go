@@ -26,7 +26,7 @@ func (node *NodeConfig) GetReputerStakeInTopic(
 				TopicId:        topicId,
 			})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint: exhaustruct
 		"get reputer stake in topic",
 	)
 	if err != nil {

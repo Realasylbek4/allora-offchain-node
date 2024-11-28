@@ -22,7 +22,7 @@ func (node *NodeConfig) GetTopicInfo(topicId emissionstypes.TopicId) (*emissions
 				TopicId: topicId,
 			})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint: exhaustruct
 		"get topic info",
 	)
 	if err != nil {

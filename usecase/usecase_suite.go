@@ -19,5 +19,5 @@ func NewUseCaseSuite(userConfig lib.UserConfig) (*UseCaseSuite, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &UseCaseSuite{Node: *nodeConfig}, nil
+	return &UseCaseSuite{Node: *nodeConfig}, nil // nolint: exhaustruct
 }

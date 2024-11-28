@@ -65,11 +65,11 @@ func main() {
 
 	log.Info().Msg("Starting allora offchain node...")
 
-	metrics := lib.NewMetrics(lib.COUNTER_DATA)
+	metrics := lib.NewMetrics(lib.CounterData)
 	metrics.RegisterMetricsCounters()
 	metrics.StartMetricsServer(":2112")
 
-	finalUserConfig := lib.UserConfig{}
+	finalUserConfig := lib.UserConfig{} // nolint: exhaustruct
 	alloraJsonConfig := os.Getenv(lib.ALLORA_OFFCHAIN_NODE_CONFIG_JSON)
 	if alloraJsonConfig != "" {
 		log.Info().Msg("Config using JSON env var")

@@ -1,5 +1,6 @@
 package usecase
 
+// nolint:all // TODO: fix
 import (
 	"allora_offchain_node/lib"
 
@@ -22,12 +23,12 @@ func (m *MockAlloraAdapter) CalcInference(config lib.WorkerConfig, timestamp int
 
 func (m *MockAlloraAdapter) CalcForecast(config lib.WorkerConfig, timestamp int64) ([]lib.NodeValue, error) {
 	args := m.Called(config, timestamp)
-	return args.Get(0).([]lib.NodeValue), args.Error(1)
+	return args.Get(0).([]lib.NodeValue), args.Error(1) // nolint: forcetypeassert
 }
 
 func (m *MockAlloraAdapter) GroundTruth(config lib.ReputerConfig, timestamp int64) (lib.Truth, error) {
 	args := m.Called(config, timestamp)
-	return args.Get(0).(lib.Truth), args.Error(1)
+	return args.Get(0).(lib.Truth), args.Error(1) // nolint: forcetypeassert
 }
 
 // Update LossFunction to match the new signature
@@ -58,7 +59,7 @@ func (m *MockAlloraAdapter) IsLossFunctionNeverNegative(node lib.ReputerConfig, 
 }
 
 func NewMockAlloraAdapter() *MockAlloraAdapter {
-	m := &MockAlloraAdapter{}
+	m := &MockAlloraAdapter{} // nolint: exhaustruct
 
 	return m
 }

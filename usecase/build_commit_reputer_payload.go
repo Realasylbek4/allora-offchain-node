@@ -91,20 +91,20 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 
 	lossMethodOptions := reputer.LossFunctionParameters.LossMethodOptions
 	// Use the cached IsNeverNegative value
-	is_never_negative := false
+	isNeverNegative := false
 	if reputer.LossFunctionParameters.IsNeverNegative != nil {
-		is_never_negative = *reputer.LossFunctionParameters.IsNeverNegative
+		isNeverNegative = *reputer.LossFunctionParameters.IsNeverNegative
 	} else {
 		var err error
-		is_never_negative, err = reputer.LossFunctionEntrypoint.IsLossFunctionNeverNegative(reputer, lossMethodOptions)
+		isNeverNegative, err = reputer.LossFunctionEntrypoint.IsLossFunctionNeverNegative(reputer, lossMethodOptions)
 		if err != nil {
 			return emissionstypes.ValueBundle{}, errorsmod.Wrapf(err, "failed to determine if loss function is never negative")
 		}
 		// cache the result
-		reputer.LossFunctionParameters.IsNeverNegative = &is_never_negative
+		reputer.LossFunctionParameters.IsNeverNegative = &isNeverNegative
 	}
 
-	losses := emissionstypes.ValueBundle{
+	losses := emissionstypes.ValueBundle{ // nolint: exhaustruct
 		TopicId:             vb.TopicId,
 		ReputerRequestNonce: vb.ReputerRequestNonce,
 		Reputer:             vb.Reputer,
@@ -122,7 +122,7 @@ func (suite *UseCaseSuite) ComputeLossBundle(sourceTruth string, vb *emissionsty
 			return alloraMath.Dec{}, errorsmod.Wrapf(err, "error parsing loss value for %s", description)
 		}
 
-		if is_never_negative {
+		if isNeverNegative {
 			loss, err = alloraMath.Log10(loss)
 			if err != nil {
 				return alloraMath.Dec{}, errorsmod.Wrapf(err, "error Log10 for %s", description)

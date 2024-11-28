@@ -51,33 +51,33 @@ func getAlloraClient(config *UserConfig) (*cosmosclient.Client, error) {
 	return &client, nil
 }
 
-func (config *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
-	client, err := getAlloraClient(config)
+func (c *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
+	client, err := getAlloraClient(c)
 	if err != nil {
-		config.Wallet.SubmitTx = false
+		c.Wallet.SubmitTx = false
 		return nil, err
 	}
 	var account *cosmosaccount.Account
 	// if we're giving a keyring ring name, with no mnemonic restore
-	if config.Wallet.AddressRestoreMnemonic == "" && config.Wallet.AddressKeyName != "" {
+	if c.Wallet.AddressRestoreMnemonic == "" && c.Wallet.AddressKeyName != "" {
 		// get account from the keyring
-		acc, err := client.Account(config.Wallet.AddressKeyName)
+		acc, err := client.Account(c.Wallet.AddressKeyName)
 		if err != nil {
-			config.Wallet.SubmitTx = false
+			c.Wallet.SubmitTx = false
 			log.Error().Err(err).Msg("could not retrieve account from keyring")
 		} else {
 			account = &acc
 		}
-	} else if config.Wallet.AddressRestoreMnemonic != "" && config.Wallet.AddressKeyName != "" {
+	} else if c.Wallet.AddressRestoreMnemonic != "" && c.Wallet.AddressKeyName != "" {
 		// restore from mnemonic
-		acc, err := client.AccountRegistry.Import(config.Wallet.AddressKeyName, config.Wallet.AddressRestoreMnemonic, "")
+		acc, err := client.AccountRegistry.Import(c.Wallet.AddressKeyName, c.Wallet.AddressRestoreMnemonic, "")
 		if err != nil {
 			if err.Error() == "account already exists" {
-				acc, err = client.Account(config.Wallet.AddressKeyName)
+				acc, err = client.Account(c.Wallet.AddressKeyName)
 			}
 
 			if err != nil {
-				config.Wallet.SubmitTx = false
+				c.Wallet.SubmitTx = false
 				log.Err(err).Msg("could not restore account from mnemonic")
 			} else {
 				account = &acc
@@ -95,7 +95,7 @@ func (config *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
 
 	address, err := account.Address(ADDRESS_PREFIX)
 	if err != nil {
-		config.Wallet.SubmitTx = false
+		c.Wallet.SubmitTx = false
 		log.Err(err).Msg("could not retrieve allora blockchain address, transactions will not be submitted to chain")
 	} else {
 		log.Info().Str("address", address).Msg("allora blockchain address loaded")
@@ -107,12 +107,12 @@ func (config *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
 	// Create bank client
 	bankClient := banktypes.NewQueryClient(client.Context())
 
-	// this is terrible, no isConnected as part of this code path
+	// Check chainId is set
 	if client.Context().ChainID == "" {
-		return nil, nil
+		return nil, errors.New("ChainId is empty")
 	}
 
-	config.Wallet.Address = address // Overwrite the address with the one from the keystore
+	c.Wallet.Address = address // Overwrite the address with the one from the keystore
 
 	log.Info().Msg("Allora client created successfully")
 	log.Info().Msg("Wallet address: " + address)
@@ -129,9 +129,9 @@ func (config *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
 
 	Node := NodeConfig{
 		Chain:   alloraChain,
-		Wallet:  config.Wallet,
-		Worker:  config.Worker,
-		Reputer: config.Reputer,
+		Wallet:  c.Wallet,
+		Worker:  c.Worker,
+		Reputer: c.Reputer,
 	}
 
 	return &Node, nil

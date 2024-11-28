@@ -1,9 +1,12 @@
+// nolint:all // TODO: fix
+
 package usecase
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCalculateTimeDistanceInSeconds(t *testing.T) {
@@ -110,10 +113,10 @@ func TestCalculateTimeDistanceInSeconds(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result, err := calculateTimeDistanceInSeconds(test.distanceUntilNextEpoch, test.blockAvgSeconds, test.correctionFactor)
 			if test.expectedError {
-				assert.Error(t, err, "Expected an error for negative input")
+				require.Error(t, err, "Expected an error for negative input")
 				assert.Equal(t, int64(0), result, "Expected 0 result when error occurs")
 			} else {
-				assert.NoError(t, err, "Did not expect an error")
+				require.NoError(t, err, "Did not expect an error")
 				assert.Equal(t, test.expectedTimeDistance, result, "Calculated time distance should match expected value")
 			}
 		})
