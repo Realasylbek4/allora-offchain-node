@@ -22,6 +22,9 @@ const NUM_SUBMISSION_WINDOWS_FOR_SUBMISSION_NEARNESS int64 = 2
 // Waiting times under nearness circumstances are adjusted by this factor
 const NEARNESS_CORRECTION_FACTOR float64 = 1.0
 
+// Correction factor used when calculating time distances for new topics
+const NEW_TOPIC_CORRECTION_FACTOR float64 = 0.5
+
 // Minimum wait time between status checks
 const WAIT_TIME_STATUS_CHECKS int64 = 2
 
@@ -318,9 +321,47 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 			Int64("EpochLength", epochLength).
 			Msg("Info from topic")
 
+		// Special case: new topic
+		if topicInfo.EpochLastEnded == 0 {
+			log.Debug().Msg("New topic, processing payload")
+			// timeoutHeight is one epoch length away
+			timeoutHeight := currentBlockHeight + epochLength
+
+			latestNonceHeightSentTxFor, err = params.ProcessPayload(params.Config, latestNonceHeightSentTxFor, uint64(timeoutHeight))
+			if err != nil {
+				log.Error().
+					Err(err).
+					Uint64("topicId", uint64(params.Config.GetTopicId())).
+					Str("actorType", params.ActorType).
+					Msg("Error processing payload - could not complete transaction")
+			}
+			// Wait for an epochLength with a correction factor, it will self-adjust from there
+			waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
+				epochLength,
+				suite.Node.Wallet.BlockDurationEstimated,
+				NEW_TOPIC_CORRECTION_FACTOR,
+			)
+			if err != nil {
+				log.Error().
+					Err(err).
+					Uint64("topicId", uint64(params.Config.GetTopicId())).
+					Str("actorType", params.ActorType).
+					Int64("waitingTimeInSeconds", waitingTimeInSeconds).
+					Msg("Error calculating time distance to next epoch after sending tx - wait epochLength")
+				return
+			}
+			suite.Wait(waitingTimeInSeconds)
+			continue
+		}
+
 		epochLastEnded := topicInfo.EpochLastEnded
 		epochEnd := epochLastEnded + epochLength
 		timeoutHeight := epochLastEnded + params.SubmissionWindowLength
+		log.Trace().
+			Int64("epochLastEnded", epochLastEnded).
+			Int64("epochEnd", epochEnd).
+			Int64("timeoutHeight", timeoutHeight).
+			Msg("Epoch info")
 
 		// Check if block is within the submission window
 		if currentBlockHeight-epochLastEnded <= params.SubmissionWindowLength {
@@ -335,6 +376,16 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 			}
 
 			distanceUntilNextEpoch := epochEnd - currentBlockHeight
+			if distanceUntilNextEpoch < 0 {
+				log.Warn().
+					Uint64("topicId", uint64(params.Config.GetTopicId())).
+					Str("actorType", params.ActorType).
+					Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
+					Int64("submissionWindowLength", params.SubmissionWindowLength).
+					Msg("Distance until next epoch is less than 0, setting to submissionWindowLength")
+				distanceUntilNextEpoch = params.SubmissionWindowLength
+			}
+
 			waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
 				distanceUntilNextEpoch,
 				suite.Node.Wallet.BlockDurationEstimated,
@@ -376,7 +427,9 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 				Uint64("topicId", uint64(params.Config.GetTopicId())).
 				Str("actorType", params.ActorType).
 				Int64("waitingTimeInSeconds", waitingTimeInSeconds).
-				Msg("Current block height is greater than next epoch length, inactive topic? Waiting seconds...")
+				Int64("currentBlockHeight", currentBlockHeight).
+				Int64("epochEnd", epochEnd).
+				Msg("Current block height is greater than next epoch length, is topic inactive? Waiting seconds...")
 			suite.Wait(waitingTimeInSeconds)
 		} else {
 			distanceUntilNextEpoch := epochEnd - currentBlockHeight

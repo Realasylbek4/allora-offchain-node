@@ -13,17 +13,18 @@ import (
 	"github.com/rs/zerolog/log"
 
 	errorsmod "cosmossdk.io/errors"
+	emissions "github.com/allora-network/allora-chain/x/emissions/types"
 	sdktypes "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
 )
 
+const ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER = "error code:"
 const ERROR_MESSAGE_DATA_ALREADY_SUBMITTED = "already submitted"
 const ERROR_MESSAGE_CANNOT_UPDATE_EMA = "cannot update EMA"
 const ERROR_MESSAGE_WAITING_FOR_NEXT_BLOCK = "waiting for next block" // This means tx is accepted in mempool but not yet included in a block
 const ERROR_MESSAGE_ACCOUNT_SEQUENCE_MISMATCH = "account sequence mismatch"
 const ERROR_MESSAGE_TIMEOUT_HEIGHT = "timeout height"
-const ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER = "error code:"
 const ERROR_MESSAGE_NOT_PERMITTED_TO_SUBMIT_PAYLOAD = "not permitted to submit payload"
 const ERROR_MESSAGE_NOT_PERMITTED_TO_ADD_STAKE = "not permitted to add stake"
 
@@ -84,6 +85,22 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 					return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "invalid chain-id")
 				case int(sdkerrors.ErrTxTimeoutHeight.ABCICode()):
 					return ERROR_PROCESSING_FAILURE, errorsmod.Wrapf(err, "tx timeout height")
+				case int(emissions.ErrWorkerNonceWindowNotAvailable.ABCICode()):
+					log.Warn().
+						Err(err).
+						Str("msg", infoMsg).
+						Msg("Worker window not available, retrying with exponential backoff")
+					delay := calculateExponentialBackoffDelay(node.Wallet.RetryDelay, retryCount)
+					time.Sleep(delay)
+					return ERROR_PROCESSING_CONTINUE, nil
+				case int(emissions.ErrReputerNonceWindowNotAvailable.ABCICode()):
+					log.Warn().
+						Err(err).
+						Str("msg", infoMsg).
+						Msg("Reputer window not available, retrying with exponential backoff")
+					delay := calculateExponentialBackoffDelay(node.Wallet.RetryDelay, retryCount)
+					time.Sleep(delay)
+					return ERROR_PROCESSING_CONTINUE, nil
 				default:
 					log.Info().Int("errorCode", errorCode).Str("msg", infoMsg).Msg("ABCI error, but not special case - regular retry")
 				}
