@@ -1,4 +1,3 @@
-// nolint:all // TODO: fix
 package usecase
 
 import (
@@ -10,14 +9,15 @@ import (
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestComputeLossBundle(t *testing.T) {
 	reputerOptions := map[string]string{
 		"method": "sqe",
 	}
-	reputerConfig := lib.ReputerConfig{
-		LossFunctionParameters: lib.LossFunctionParameters{
+	reputerConfig := lib.ReputerConfig{ // nolint: exhaustruct
+		LossFunctionParameters: lib.LossFunctionParameters{ // nolint: exhaustruct
 			LossMethodOptions: reputerOptions,
 			IsNeverNegative:   &[]bool{false}[0],
 		},
@@ -33,7 +33,7 @@ func TestComputeLossBundle(t *testing.T) {
 		expectError         bool
 		errorContains       string
 	}{
-		{
+		{ // nolint: exhaustruct
 			name:        "Happy path - all positive values",
 			sourceTruth: "10.0",
 			valueBundle: func() *emissionstypes.ValueBundle {
@@ -41,7 +41,7 @@ func TestComputeLossBundle(t *testing.T) {
 				naive, _ := alloraMath.NewDecFromString("9.0")
 				inferer, _ := alloraMath.NewDecFromString("9.7")
 				forecaster, _ := alloraMath.NewDecFromString("9.8")
-				return &emissionstypes.ValueBundle{
+				return &emissionstypes.ValueBundle{ // nolint: exhaustruct
 					CombinedValue: combined,
 					NaiveValue:    naive,
 					InfererValues: []*emissionstypes.WorkerAttributedValue{
@@ -68,12 +68,12 @@ func TestComputeLossBundle(t *testing.T) {
 			},
 			expectError: false,
 		},
-		{
+		{ // nolint: exhaustruct
 			name:        "Error in LossFunction",
 			sourceTruth: "10.0",
 			valueBundle: func() *emissionstypes.ValueBundle {
 				combined, _ := alloraMath.NewDecFromString("9.5")
-				return &emissionstypes.ValueBundle{
+				return &emissionstypes.ValueBundle{ // nolint: exhaustruct
 					CombinedValue: combined,
 				}
 			}(),
@@ -84,12 +84,12 @@ func TestComputeLossBundle(t *testing.T) {
 			expectError:   true,
 			errorContains: "error computing loss for combined value",
 		},
-		{
+		{ // nolint: exhaustruct
 			name:        "Invalid loss value",
 			sourceTruth: "10.0",
 			valueBundle: func() *emissionstypes.ValueBundle {
 				combined, _ := alloraMath.NewDecFromString("9.5")
-				return &emissionstypes.ValueBundle{
+				return &emissionstypes.ValueBundle{ // nolint: exhaustruct
 					CombinedValue: combined,
 				}
 			}(),
@@ -100,7 +100,7 @@ func TestComputeLossBundle(t *testing.T) {
 			expectError:   true,
 			errorContains: "error parsing loss",
 		},
-		{
+		{ // nolint: exhaustruct
 			name:          "Nil ValueBundle",
 			sourceTruth:   "10.0",
 			valueBundle:   nil,
@@ -109,10 +109,10 @@ func TestComputeLossBundle(t *testing.T) {
 			expectError:   true,
 			errorContains: "nil ValueBundle",
 		},
-		{
+		{ // nolint: exhaustruct
 			name:          "Empty ValueBundle",
 			sourceTruth:   "10.0",
-			valueBundle:   &emissionstypes.ValueBundle{},
+			valueBundle:   &emissionstypes.ValueBundle{}, // nolint: exhaustruct
 			reputerConfig: reputerConfig,
 			mockSetup:     func(m *MockAlloraAdapter) {},
 			expectError:   true,
@@ -127,14 +127,14 @@ func TestComputeLossBundle(t *testing.T) {
 			tt.reputerConfig.GroundTruthEntrypoint = mockAdapter
 			tt.reputerConfig.LossFunctionEntrypoint = mockAdapter
 
-			suite := &UseCaseSuite{}
+			suite := &UseCaseSuite{} // nolint: exhaustruct
 			result, err := suite.ComputeLossBundle(tt.sourceTruth, tt.valueBundle, tt.reputerConfig)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedLossStrings["CombinedValue"], result.CombinedValue.String(), "Mismatch for CombinedValue")
 				assert.Equal(t, tt.expectedLossStrings["NaiveValue"], result.NaiveValue.String(), "Mismatch for NaiveValue")
 				for i, inferer := range result.InfererValues {

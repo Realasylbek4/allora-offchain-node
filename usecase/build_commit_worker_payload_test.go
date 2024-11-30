@@ -1,4 +1,3 @@
-// nolint:all // TODO: fix
 package usecase
 
 import (
@@ -8,6 +7,7 @@ import (
 	alloraMath "github.com/allora-network/allora-chain/math"
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func (suite *UseCaseSuite) SetupTest() {
@@ -48,13 +48,13 @@ func TestComputeWorkerBundle(t *testing.T) {
 			mockSetup: func(m *MockAlloraAdapter) {
 			},
 			expectedResponse: emissionstypes.InferenceForecastBundle{
-				Inference: &emissionstypes.Inference{
+				Inference: &emissionstypes.Inference{ // nolint: exhaustruct
 					TopicId:     uint64(1),
 					BlockHeight: 1,
 					Inferer:     "worker1",
 					Value:       alloraMath.MustNewDecFromString("9.5"),
 				},
-				Forecast: &emissionstypes.Forecast{
+				Forecast: &emissionstypes.Forecast{ // nolint: exhaustruct
 					TopicId:     uint64(1),
 					BlockHeight: 1,
 					Forecaster:  "worker1",
@@ -66,11 +66,11 @@ func TestComputeWorkerBundle(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
-			address:     "worker1",
+			expectError:   false,
+			errorContains: "",
+			address:       "worker1",
 		},
-		// Add more test cases here
-		{
+		{ // nolint: exhaustruct
 			name: "Invalid inference value",
 			workerConfig: lib.WorkerResponse{
 				WorkerConfig: lib.WorkerConfig{
@@ -91,7 +91,7 @@ func TestComputeWorkerBundle(t *testing.T) {
 			errorContains: "invalid decimal string",
 			address:       "worker1",
 		},
-		{
+		{ // nolint: exhaustruct
 			name: "Invalid forecast value",
 			workerConfig: lib.WorkerResponse{
 				WorkerConfig: lib.WorkerConfig{
@@ -121,14 +121,14 @@ func TestComputeWorkerBundle(t *testing.T) {
 			tt.workerConfig.InferenceEntrypoint = mockAdapter
 			tt.workerConfig.ForecastEntrypoint = mockAdapter
 
-			suite := &UseCaseSuite{}
+			suite := &UseCaseSuite{} // nolint: exhaustruct
 			suite.Node.Wallet.Address = tt.address
 			response, err := suite.BuildWorkerPayload(tt.workerConfig, 1)
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedResponse.Inference.BlockHeight, response.Inference.BlockHeight)
 				assert.Equal(t, tt.expectedResponse.Inference.Inferer, response.Inference.Inferer)
 				assert.Equal(t, tt.expectedResponse.Inference.TopicId, response.Inference.TopicId)

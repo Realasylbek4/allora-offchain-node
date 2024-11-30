@@ -1,6 +1,5 @@
 package usecase
 
-// nolint:all // TODO: fix
 import (
 	"allora_offchain_node/lib"
 

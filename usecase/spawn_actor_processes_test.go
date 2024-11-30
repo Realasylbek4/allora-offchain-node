@@ -1,5 +1,3 @@
-// nolint:all // TODO: fix
-
 package usecase
 
 import (
