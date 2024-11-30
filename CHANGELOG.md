@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * [#66](https://github.com/allora-network/allora-offchain-node/pull/66) Smart worker detection of submission windows + persistent error management + query retrials + reg/stake robustness + improved logging
 * [#81](https://github.com/allora-network/allora-offchain-node/pull/81) Timeout height handling on tx submission
+* [#90](https://github.com/allora-network/allora-offchain-node/pull/90) Added unit tests on CI/CD
 
 ### Removed
 
