@@ -152,7 +152,8 @@ The wallet configuration is done in `config.json` under the `wallet` field.
 
 - `gas` can be set to `auto` or a specific gas value. If set to `auto`, the node will automatically calculate the gas limit based on the estimated gas used by the transactions.
 - `gasAdjustment` is used to adjust the gas limit.
-- `gasPrices` and `maxFees` fields are used to set the gas prices and max fees for the wallet. They are expressed in `uallo`.
+- `gasPrices` can be set to `auto` or a specific gas price. If set to `auto`, the node will automatically calculate the gas price based on chain's feemarket-based gas prices. This is the recommended setting, since feemarket introduces variability in the gas price in the chain.
+- `maxFees` set the max fees that can be paid for a transaction. They are expressed numerically in `uallo`.
 
 ### Error handling
 
@@ -184,8 +185,7 @@ These below are excerpts of the configuration (with some parts omitted for brevi
    "worker": [
       {
         "topicId": 1,
-        "inferenceEntrypointName": "api-worker-reputer",
-        "loopSeconds": 10,
+        "inferenceEntrypointName": "apiAdapter",
         "parameters": {
           "InferenceEndpoint": "http://source:8000/inference/{Token}",
           "Token": "ETH"
@@ -201,8 +201,7 @@ These below are excerpts of the configuration (with some parts omitted for brevi
    "worker": [
       {
         "topicId": 1,
-        "forecastEntrypointName": "api-worker-reputer",
-        "loopSeconds": 10,
+        "forecastEntrypointName": "apiAdapter",
         "parameters": {
           "ForecastEndpoint": "http://source:8000/forecasts/{TopicId}/{BlockHeight}"
         }
@@ -219,9 +218,8 @@ These below are excerpts of the configuration (with some parts omitted for brevi
    "worker": [
       {
         "topicId": 1,
-        "inferenceEntrypointName": "api-worker-reputer",
-        "forecastEntrypointName": "api-worker-reputer",
-        "loopSeconds": 10,
+        "inferenceEntrypointName": "apiAdapter",
+        "forecastEntrypointName": "apiAdapter",
         "parameters": {
           "InferenceEndpoint": "http://source:8000/inference/{Token}",
           "ForecastEndpoint": "http://source:8000/forecasts/{TopicId}/{BlockHeight}",
@@ -239,9 +237,8 @@ These below are excerpts of the configuration (with some parts omitted for brevi
 "reputer": [
       {
         "topicId": 1,
-        "groundTruthEntrypointName": "api-worker-reputer",
-        "lossFunctionEntrypointName": "api-worker-reputer",
-        "loopSeconds": 30,
+        "groundTruthEntrypointName": "apiAdapter",
+        "lossFunctionEntrypointName": "apiAdapter",
         "minStake": 100000,
         "groundTruthParameters": {
           "GroundTruthEndpoint": "http://localhost:8888/gt/{Token}/{BlockHeight}",
@@ -265,9 +262,8 @@ These below are excerpts of the configuration (with some parts omitted for brevi
 "worker": [
       {
         "topicId": 1,
-        "inferenceEntrypointName": "api-worker-reputer",
-        "forecastEntrypointName": "api-worker-reputer",
-        "loopSeconds": 10,
+        "inferenceEntrypointName": "apiAdapter",
+        "forecastEntrypointName": "apiAdapter",
         "parameters": {
           "InferenceEndpoint": "http://source:8000/inference/{Token}",
           "ForecastEndpoint": "http://source:8000/forecasts/{TopicId}/{BlockHeight}",
@@ -278,9 +274,8 @@ These below are excerpts of the configuration (with some parts omitted for brevi
 "reputer": [
       {
         "topicId": 1,
-        "groundTruthEntrypointName": "api-worker-reputer",
-        "lossFunctionEntrypointName": "api-worker-reputer",
-        "loopSeconds": 30,
+        "groundTruthEntrypointName": "apiAdapter",
+        "lossFunctionEntrypointName": "apiAdapter",
         "minStake": 100000,
         "groundTruthParameters": {
           "GroundTruthEndpoint": "http://localhost:8888/gt/{Token}/{BlockHeight}",

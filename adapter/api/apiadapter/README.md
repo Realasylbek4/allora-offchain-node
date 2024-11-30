@@ -30,8 +30,8 @@ Example as Reputer ("gt" in this context means "ground truth"):
 Reputer: []lib.ReputerConfig{
     {
         "topicId": 1,
-        "groundTruthEntrypointName": "api-worker-reputer",
-        "lossFunctionEntrypointName": "api-worker-reputer",
+        "groundTruthEntrypointName": "apiAdapter",
+        "lossFunctionEntrypointName": "apiAdapter",
         "loopSeconds": 30,
         "minStake": 100000,
         "groundTruthParameters": {

@@ -34,8 +34,8 @@ func TestComputeWorkerBundle(t *testing.T) {
 			workerConfig: lib.WorkerResponse{
 				WorkerConfig: lib.WorkerConfig{
 					TopicId:                 emissionstypes.TopicId(1),
-					InferenceEntrypointName: "api-worker-reputer",
-					ForecastEntrypointName:  "api-worker-reputer",
+					InferenceEntrypointName: "apiAdapter",
+					ForecastEntrypointName:  "apiAdapter",
 					InferenceEntrypoint:     nil, // Will be set in the test
 					ForecastEntrypoint:      nil, // Will be set in the test
 					Parameters:              workerOptions,
@@ -75,8 +75,8 @@ func TestComputeWorkerBundle(t *testing.T) {
 			workerConfig: lib.WorkerResponse{
 				WorkerConfig: lib.WorkerConfig{
 					TopicId:                 emissionstypes.TopicId(1),
-					InferenceEntrypointName: "api-worker-reputer",
-					ForecastEntrypointName:  "api-worker-reputer",
+					InferenceEntrypointName: "apiAdapter",
+					ForecastEntrypointName:  "apiAdapter",
 					InferenceEntrypoint:     nil,
 					ForecastEntrypoint:      nil,
 					Parameters:              workerOptions,
@@ -96,8 +96,8 @@ func TestComputeWorkerBundle(t *testing.T) {
 			workerConfig: lib.WorkerResponse{
 				WorkerConfig: lib.WorkerConfig{
 					TopicId:                 emissionstypes.TopicId(1),
-					InferenceEntrypointName: "api-worker-reputer",
-					ForecastEntrypointName:  "api-worker-reputer",
+					InferenceEntrypointName: "apiAdapter",
+					ForecastEntrypointName:  "apiAdapter",
 					InferenceEntrypoint:     nil,
 					ForecastEntrypoint:      nil,
 					Parameters:              workerOptions,
