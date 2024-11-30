@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * [#87](https://github.com/allora-network/allora-offchain-node/pull/87) Update v0.7.0 chain + whitelist coverage
+* [#89](https://github.com/allora-network/allora-offchain-node/pull/89) Added linter
 
 ### Removed
 

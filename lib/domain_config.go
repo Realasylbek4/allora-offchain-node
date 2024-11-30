@@ -61,8 +61,8 @@ type WorkerConfig struct {
 }
 
 // Implement TopicActor interface for WorkerConfig
-func (w WorkerConfig) GetTopicId() emissions.TopicId {
-	return w.TopicId
+func (workerConfig WorkerConfig) GetTopicId() emissions.TopicId {
+	return workerConfig.TopicId
 }
 
 type ReputerConfig struct {
@@ -81,8 +81,8 @@ type ReputerConfig struct {
 }
 
 // Implement TopicActor interface for ReputerConfig
-func (r ReputerConfig) GetTopicId() emissions.TopicId {
-	return r.TopicId
+func (reputerConfig ReputerConfig) GetTopicId() emissions.TopicId {
+	return reputerConfig.TopicId
 }
 
 type LossFunctionParameters struct {
@@ -153,16 +153,16 @@ func (c *UserConfig) ValidateConfigAdapters() error {
 
 func (c *UserConfig) ValidateWalletConfig() error {
 	if c.Wallet.WindowCorrectionFactor < WindowCorrectionFactorSuggestedMin {
-		return errors.New(fmt.Sprintf("window correction factor lower than suggested minimum: %f < %f", c.Wallet.WindowCorrectionFactor, WindowCorrectionFactorSuggestedMin))
+		return fmt.Errorf("window correction factor lower than suggested minimum: %f < %f", c.Wallet.WindowCorrectionFactor, WindowCorrectionFactorSuggestedMin)
 	}
 	if c.Wallet.BlockDurationEstimated < BlockDurationEstimatedMin {
-		return errors.New(fmt.Sprintf("block duration estimated lower than the minimum: %f < %f", c.Wallet.BlockDurationEstimated, BlockDurationEstimatedMin))
+		return fmt.Errorf("block duration estimated lower than the minimum: %f < %f", c.Wallet.BlockDurationEstimated, BlockDurationEstimatedMin)
 	}
 	if c.Wallet.RetryDelay < RetryDelayMin {
-		return errors.New(fmt.Sprintf("retry delay lower than the minimum: %d < %d", c.Wallet.RetryDelay, RetryDelayMin))
+		return fmt.Errorf("retry delay lower than the minimum: %d < %d", c.Wallet.RetryDelay, RetryDelayMin)
 	}
 	if c.Wallet.AccountSequenceRetryDelay < AccountSequenceRetryDelayMin {
-		return errors.New(fmt.Sprintf("account sequence retry delay lower than the minimum: %d < %d", c.Wallet.AccountSequenceRetryDelay, AccountSequenceRetryDelayMin))
+		return fmt.Errorf("account sequence retry delay lower than the minimum: %d < %d", c.Wallet.AccountSequenceRetryDelay, AccountSequenceRetryDelayMin)
 	}
 
 	return nil

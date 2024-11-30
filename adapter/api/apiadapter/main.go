@@ -1,4 +1,4 @@
-package api_worker_reputer
+package apiadapter
 
 import (
 	"allora_offchain_node/lib"
@@ -46,7 +46,7 @@ func replaceExtendedPlaceholders(urlTemplate string, params map[string]string, b
 
 func requestEndpoint(url string) (string, error) {
 	// make request to url
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) // nolint: gosec
 	if err != nil {
 		return "", fmt.Errorf("failed to make request to %s: %w", url, err)
 	}
@@ -145,7 +145,7 @@ func (a *AlloraAdapter) GroundTruth(node lib.ReputerConfig, blockHeight int64) (
 		}
 	}
 	log.Info().Str("url", url).Str("groundTruth", groundTruthDec.String()).Msg("Ground truth")
-	return lib.Truth(groundTruthDec.String()), nil
+	return groundTruthDec.String(), nil
 }
 
 func (a *AlloraAdapter) LossFunction(node lib.ReputerConfig, groundTruth string, inferenceValue string, options map[string]string) (string, error) {
@@ -178,7 +178,7 @@ func (a *AlloraAdapter) LossFunction(node lib.ReputerConfig, groundTruth string,
 	req.Header.Set("Content-Type", "application/json")
 
 	// Send the request
-	client := &http.Client{}
+	client := &http.Client{} // nolint: exhaustruct
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
@@ -235,7 +235,7 @@ func (a *AlloraAdapter) IsLossFunctionNeverNegative(node lib.ReputerConfig, opti
 	req.Header.Set("Content-Type", "application/json")
 
 	// Send the request
-	client := &http.Client{}
+	client := &http.Client{} // nolint: exhaustruct
 	resp, err := client.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("failed to send request: %w", err)

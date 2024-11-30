@@ -22,7 +22,7 @@ func (node *NodeConfig) GetBalance() (cosmossdk_io_math.Int, error) {
 				Denom:   node.Chain.DefaultBondDenom,
 			})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint: exhaustruct
 		"get balance",
 	)
 	if err != nil {

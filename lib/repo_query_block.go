@@ -21,7 +21,7 @@ func (node *NodeConfig) GetReputerValuesAtBlock(topicId emissionstypes.TopicId, 
 				BlockHeightLastInference: nonce,
 			})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint: exhaustruct
 		"get reputer values at block",
 	)
 	if err != nil {

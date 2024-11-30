@@ -22,7 +22,7 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 		return errors.New("Worker has no valid Inference or Forecast entrypoints")
 	}
 
-	var workerResponse = lib.WorkerResponse{
+	var workerResponse = lib.WorkerResponse{ // nolint: exhaustruct
 		WorkerConfig: worker,
 	}
 
@@ -36,7 +36,6 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 	}
 
 	if worker.ForecastEntrypoint != nil {
-		forecasts := []lib.NodeValue{}
 		forecasts, err := worker.ForecastEntrypoint.CalcForecast(worker, nonce.BlockHeight)
 		if err != nil {
 			return errorsmod.Wrapf(err, "Error computing forecast for worker, topicId: %d, blockHeight: %d", worker.TopicId, nonce.BlockHeight)
@@ -87,14 +86,14 @@ func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, non
 
 func (suite *UseCaseSuite) BuildWorkerPayload(workerResponse lib.WorkerResponse, nonce emissionstypes.BlockHeight) (emissionstypes.InferenceForecastBundle, error) {
 
-	inferenceForecastsBundle := emissionstypes.InferenceForecastBundle{}
+	inferenceForecastsBundle := emissionstypes.InferenceForecastBundle{} // nolint: exhaustruct
 
 	if workerResponse.InfererValue != "" {
 		infererValue, err := alloraMath.NewDecFromString(workerResponse.InfererValue)
 		if err != nil {
-			return emissionstypes.InferenceForecastBundle{}, errorsmod.Wrapf(err, "error converting infererValue to Dec")
+			return emissionstypes.InferenceForecastBundle{}, errorsmod.Wrapf(err, "error converting infererValue to Dec") // nolint: exhaustruct
 		}
-		builtInference := &emissionstypes.Inference{
+		builtInference := &emissionstypes.Inference{ // nolint: exhaustruct
 			TopicId:     workerResponse.TopicId,
 			Inferer:     suite.Node.Wallet.Address,
 			Value:       infererValue,
@@ -104,11 +103,11 @@ func (suite *UseCaseSuite) BuildWorkerPayload(workerResponse lib.WorkerResponse,
 	}
 
 	if len(workerResponse.ForecasterValues) > 0 {
-		var forecasterElements []*emissionstypes.ForecastElement
+		var forecasterElements []*emissionstypes.ForecastElement // nolint: exhaustruct
 		for _, val := range workerResponse.ForecasterValues {
 			decVal, err := alloraMath.NewDecFromString(val.Value)
 			if err != nil {
-				return emissionstypes.InferenceForecastBundle{}, errorsmod.Wrapf(err, "error converting forecasterValue to Dec")
+				return emissionstypes.InferenceForecastBundle{}, errorsmod.Wrapf(err, "error converting forecasterValue to Dec") // nolint: exhaustruct
 			}
 			forecasterElements = append(forecasterElements, &emissionstypes.ForecastElement{
 				Inferer: val.Worker,
@@ -117,7 +116,7 @@ func (suite *UseCaseSuite) BuildWorkerPayload(workerResponse lib.WorkerResponse,
 		}
 
 		if len(forecasterElements) > 0 {
-			forecasterValues := &emissionstypes.Forecast{
+			forecasterValues := &emissionstypes.Forecast{ // nolint: exhaustruct
 				TopicId:          workerResponse.TopicId,
 				BlockHeight:      nonce,
 				Forecaster:       suite.Node.Wallet.Address,
@@ -134,15 +133,15 @@ func (suite *UseCaseSuite) SignWorkerPayload(workerPayload *emissionstypes.Infer
 	protoBytesIn := make([]byte, 0) // Create a byte slice with initial length 0 and capacity greater than 0
 	protoBytesIn, err := workerPayload.XXX_Marshal(protoBytesIn, true)
 	if err != nil {
-		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error marshalling workerPayload")
+		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error marshalling workerPayload") // nolint: exhaustruct
 	}
 	sig, pk, err := suite.Node.Chain.Client.Context().Keyring.Sign(suite.Node.Chain.Account.Name, protoBytesIn, signing.SignMode_SIGN_MODE_DIRECT)
 	if err != nil {
-		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error signing the InferenceForecastsBundle message")
+		return &emissionstypes.WorkerDataBundle{}, errorsmod.Wrapf(err, "error signing the InferenceForecastsBundle message") // nolint: exhaustruct
 	}
 	pkStr := hex.EncodeToString(pk.Bytes())
 	// Create workerDataBundle with signature
-	workerDataBundle := &emissionstypes.WorkerDataBundle{
+	workerDataBundle := &emissionstypes.WorkerDataBundle{ // nolint: exhaustruct
 		Worker:                             suite.Node.Wallet.Address,
 		InferenceForecastsBundle:           workerPayload,
 		InferencesForecastsBundleSignature: sig,

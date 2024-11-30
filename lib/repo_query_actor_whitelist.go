@@ -22,7 +22,7 @@ func (node *NodeConfig) IsWorkerWhitelisted(topicId emissionstypes.TopicId, addr
 				Address: address,
 			})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint: exhaustruct
 		"check worker whitelist",
 	)
 	if err != nil {
@@ -46,7 +46,7 @@ func (node *NodeConfig) IsReputerWhitelisted(topicId emissionstypes.TopicId, add
 				Address: address,
 			})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint: exhaustruct
 		"check reputer whitelist",
 	)
 	if err != nil {
@@ -69,7 +69,7 @@ func (node *NodeConfig) IsWhitelistedGlobalActor(address string) (bool, error) {
 				Address: address,
 			})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint: exhaustruct
 		"check global actor whitelist",
 	)
 	if err != nil {
