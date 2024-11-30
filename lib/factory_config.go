@@ -14,6 +14,7 @@ import (
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosaccount"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
+	feemarkettypes "github.com/skip-mev/feemarket/x/feemarket/types"
 )
 
 func getAlloraClient(config *UserConfig) (*cosmosclient.Client, error) {
@@ -107,6 +108,9 @@ func (c *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
 	// Create bank client
 	bankClient := banktypes.NewQueryClient(client.Context())
 
+	// Where other clients are initialized, add:
+	feeMarketQueryClient := feemarkettypes.NewQueryClient(client.Context())
+
 	// Check chainId is set
 	if client.Context().ChainID == "" {
 		return nil, errors.New("ChainId is empty")
@@ -125,6 +129,7 @@ func (c *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
 		Client:               client,
 		EmissionsQueryClient: queryClient,
 		BankQueryClient:      bankClient,
+		FeeMarketQueryClient: feeMarketQueryClient,
 	}
 
 	Node := NodeConfig{

@@ -16,6 +16,7 @@ import (
 	sdktypes "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
+	feemarkettypes "github.com/skip-mev/feemarket/x/feemarket/types"
 )
 
 const ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER = "error code:"
@@ -79,6 +80,8 @@ func processError(ctx context.Context, err error, infoMsg string, retryCount int
 					}
 					return ERROR_PROCESSING_CONTINUE, nil
 				case int(sdkerrors.ErrInsufficientFee.ABCICode()):
+					return ERROR_PROCESSING_FEES, nil
+				case int(feemarkettypes.ErrNoFeeCoins.ABCICode()):
 					return ERROR_PROCESSING_FEES, nil
 				case int(sdkerrors.ErrTxTooLarge.ABCICode()):
 					return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "tx too large")
@@ -148,12 +151,29 @@ func processError(ctx context.Context, err error, infoMsg string, retryCount int
 	return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "failed to process error")
 }
 
+// Helper function to get gas prices either from config or chain
+func (node *NodeConfig) getGasPrices(ctx context.Context) (float64, error) {
+	if node.Wallet.GasPrices == "auto" {
+		return node.GetBaseFee(ctx)
+	}
+
+	gasPrices, err := strconv.ParseFloat(node.Wallet.GasPrices, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid gas prices format: %w", err)
+	}
+	return gasPrices, nil
+}
+
 // SendDataWithRetry attempts to send data, handling retries, with fee awareness.
 // Custom handling for different errors.
 func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg, infoMsg string, timeoutHeight uint64) (*cosmosclient.Response, error) {
 	var txResp *cosmosclient.Response
 	// Excess fees correction factor translated to fees using configured gas prices
-	excessFactorFees := float64(EXCESS_CORRECTION_IN_GAS) * node.Wallet.GasPrices
+	gasPrices, err := node.getGasPrices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gas prices: %w", err)
+	}
+	excessFactorFees := float64(EXCESS_CORRECTION_IN_GAS) * gasPrices
 	// Keep track of how many times fees need to be recalculated to avoid missing fee info between errors
 	recalculateFees := 0
 	// Use to keep track of expected sequence number between errors
@@ -235,9 +255,9 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 		}
 
 		// Handle fees if necessary
-		if node.Wallet.GasPrices > 0 && recalculateFees > 0 {
+		if gasPrices > 0 && recalculateFees > 0 {
 			// Precalculate fees
-			fees := uint64(float64(txService.Gas()+EXCESS_CORRECTION_IN_GAS) * node.Wallet.GasPrices)
+			fees := uint64(float64(txService.Gas()+EXCESS_CORRECTION_IN_GAS) * gasPrices)
 			// Add excess fees correction factor to increase with each fee-problematic retry
 			fees = fees + uint64(float64(recalculateFees)*excessFactorFees)
 			// Limit fees to maxFees
