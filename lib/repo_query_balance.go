@@ -2,20 +2,17 @@ package lib
 
 import (
 	"context"
-	"time"
 
 	cosmossdk_io_math "cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/types/query"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 )
 
-func (node *NodeConfig) GetBalance() (cosmossdk_io_math.Int, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) GetBalance(ctx context.Context) (cosmossdk_io_math.Int, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*banktypes.QueryBalanceResponse, error) {
 			return node.Chain.BankQueryClient.Balance(ctx, &banktypes.QueryBalanceRequest{
 				Address: node.Chain.Address,

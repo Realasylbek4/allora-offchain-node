@@ -15,9 +15,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 )
 
-func (suite *UseCaseSuite) BuildCommitWorkerPayload(worker lib.WorkerConfig, nonce *emissionstypes.Nonce, timeoutHeight uint64) error {
-	ctx := context.Background()
-
+func (suite *UseCaseSuite) BuildCommitWorkerPayload(ctx context.Context, worker lib.WorkerConfig, nonce *emissionstypes.Nonce, timeoutHeight uint64) error {
 	if worker.InferenceEntrypoint == nil && worker.ForecastEntrypoint == nil {
 		return errors.New("Worker has no valid Inference or Forecast entrypoints")
 	}

@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -43,12 +42,12 @@ const ERROR_PROCESSING_ERROR = "error"
 const ERROR_PROCESSING_FAILURE = "failure"
 
 // calculateExponentialBackoffDelay returns a duration based on retry count and base delay
-func calculateExponentialBackoffDelay(baseDelay int64, retryCount int64) time.Duration {
-	return time.Duration(math.Pow(float64(baseDelay), float64(retryCount))) * time.Second
+func calculateExponentialBackoffDelaySeconds(baseDelay int64, retryCount int64) int64 {
+	return int64(math.Pow(float64(baseDelay), float64(retryCount)))
 }
 
 // processError handles the error messages.
-func processError(err error, infoMsg string, retryCount int64, node *NodeConfig) (string, error) {
+func processError(ctx context.Context, err error, infoMsg string, retryCount int64, node *NodeConfig) (string, error) {
 	if strings.Contains(err.Error(), ERROR_MESSAGE_ABCI_ERROR_CODE_MARKER) {
 		re := regexp.MustCompile(`error code: '(\d+)'`)
 		matches := re.FindStringSubmatch(err.Error())
@@ -63,8 +62,10 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 						Err(err).
 						Str("msg", infoMsg).
 						Msg("Mempool is full, retrying with exponential backoff")
-					delay := calculateExponentialBackoffDelay(node.Wallet.RetryDelay, retryCount)
-					time.Sleep(delay)
+					delay := calculateExponentialBackoffDelaySeconds(node.Wallet.RetryDelay, retryCount)
+					if DoneOrWait(ctx, delay) {
+						return ERROR_PROCESSING_ERROR, ctx.Err()
+					}
 					return ERROR_PROCESSING_CONTINUE, nil
 				case int(sdkerrors.ErrWrongSequence.ABCICode()), int(sdkerrors.ErrInvalidSequence.ABCICode()):
 					log.Warn().
@@ -73,7 +74,9 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 						Int64("delay", node.Wallet.AccountSequenceRetryDelay).
 						Msg("Account sequence mismatch detected, retrying with fixed delay")
 					// Wait a fixed block-related waiting time
-					time.Sleep(time.Duration(node.Wallet.AccountSequenceRetryDelay) * time.Second)
+					if DoneOrWait(ctx, node.Wallet.AccountSequenceRetryDelay) {
+						return ERROR_PROCESSING_ERROR, ctx.Err()
+					}
 					return ERROR_PROCESSING_CONTINUE, nil
 				case int(sdkerrors.ErrInsufficientFee.ABCICode()):
 					return ERROR_PROCESSING_FEES, nil
@@ -90,16 +93,20 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 						Err(err).
 						Str("msg", infoMsg).
 						Msg("Worker window not available, retrying with exponential backoff")
-					delay := calculateExponentialBackoffDelay(node.Wallet.RetryDelay, retryCount)
-					time.Sleep(delay)
+					delay := calculateExponentialBackoffDelaySeconds(node.Wallet.RetryDelay, retryCount)
+					if DoneOrWait(ctx, delay) {
+						return ERROR_PROCESSING_ERROR, ctx.Err()
+					}
 					return ERROR_PROCESSING_CONTINUE, nil
 				case int(emissions.ErrReputerNonceWindowNotAvailable.ABCICode()):
 					log.Warn().
 						Err(err).
 						Str("msg", infoMsg).
 						Msg("Reputer window not available, retrying with exponential backoff")
-					delay := calculateExponentialBackoffDelay(node.Wallet.RetryDelay, retryCount)
-					time.Sleep(delay)
+					delay := calculateExponentialBackoffDelaySeconds(node.Wallet.RetryDelay, retryCount)
+					if DoneOrWait(ctx, delay) {
+						return ERROR_PROCESSING_ERROR, ctx.Err()
+					}
 					return ERROR_PROCESSING_CONTINUE, nil
 				default:
 					log.Info().Int("errorCode", errorCode).Str("msg", infoMsg).Msg("ABCI error, but not special case - regular retry")
@@ -117,7 +124,9 @@ func processError(err error, infoMsg string, retryCount int64, node *NodeConfig)
 			Str("msg", infoMsg).
 			Int64("delay", node.Wallet.AccountSequenceRetryDelay).
 			Msg("Account sequence mismatch detected, re-fetching sequence")
-		time.Sleep(time.Duration(node.Wallet.AccountSequenceRetryDelay) * time.Second)
+		if DoneOrWait(ctx, node.Wallet.AccountSequenceRetryDelay) {
+			return ERROR_PROCESSING_ERROR, ctx.Err()
+		}
 		return ERROR_PROCESSING_CONTINUE, nil
 	} else if strings.Contains(err.Error(), ERROR_MESSAGE_WAITING_FOR_NEXT_BLOCK) {
 		log.Warn().Err(err).Str("msg", infoMsg).Msg("Tx accepted in mempool, it will be included in the following block(s) - not retrying")
@@ -175,7 +184,9 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				expectedSeqNum, currentSeqNum, err := parseSequenceFromAccountMismatchError(err.Error())
 				if err != nil {
 					log.Error().Err(err).Str("msg", infoMsg).Msg("Failed to parse sequence from error - retrying with regular delay")
-					time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+					if DoneOrWait(ctx, node.Wallet.RetryDelay) {
+						return nil, ctx.Err()
+					}
 					continue
 				}
 				// Reset sequence to expected in the client's tx factory
@@ -184,13 +195,15 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 				txService, err = node.Chain.Client.CreateTxWithOptions(ctx, node.Chain.Account, txOptions, req)
 				if err != nil {
 					log.Error().Err(err).Str("msg", infoMsg).Msg("Failed to reset sequence second time, retrying with regular delay")
-					time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+					if DoneOrWait(ctx, node.Wallet.RetryDelay) {
+						return nil, ctx.Err()
+					}
 					continue
 				}
 				// if creation is successful, make the expected sequence number persistent
 				globalExpectedSeqNum = expectedSeqNum
 			} else {
-				errorResponse, err := processError(err, infoMsg, retryCount, node)
+				errorResponse, err := processError(ctx, err, infoMsg, retryCount, node)
 				switch errorResponse {
 				case ERROR_PROCESSING_OK:
 					return txResp, nil
@@ -199,7 +212,9 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 					if err != nil {
 						log.Error().Err(err).Str("msg", infoMsg).Msgf("Failed, retrying... (Retry %d/%d)", retryCount, node.Wallet.MaxRetries)
 						// Wait for the uniform delay before retrying
-						time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+						if DoneOrWait(ctx, node.Wallet.RetryDelay) {
+							return nil, ctx.Err()
+						}
 						continue
 					}
 				case ERROR_PROCESSING_CONTINUE:
@@ -248,7 +263,7 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 			return txResp, nil
 		}
 		// Handle error on broadcasting
-		errorResponse, err := processError(err, infoMsg, retryCount, node)
+		errorResponse, err := processError(ctx, err, infoMsg, retryCount, node)
 		switch errorResponse {
 		case ERROR_PROCESSING_OK:
 			return txResp, nil
@@ -257,7 +272,9 @@ func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg,
 			if err != nil {
 				log.Error().Err(err).Str("msg", infoMsg).Msgf("Failed, retrying... (Retry %d/%d)", retryCount, node.Wallet.MaxRetries)
 				// Wait for the uniform delay before retrying
-				time.Sleep(time.Duration(node.Wallet.RetryDelay) * time.Second)
+				if DoneOrWait(ctx, node.Wallet.RetryDelay) {
+					return nil, ctx.Err()
+				}
 				continue
 			}
 		case ERROR_PROCESSING_CONTINUE:

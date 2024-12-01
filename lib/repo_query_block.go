@@ -2,19 +2,16 @@ package lib
 
 import (
 	"context"
-	"time"
 
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
 )
 
-func (node *NodeConfig) GetReputerValuesAtBlock(topicId emissionstypes.TopicId, nonce BlockHeight) (*emissionstypes.ValueBundle, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) GetReputerValuesAtBlock(ctx context.Context, topicId emissionstypes.TopicId, nonce BlockHeight) (*emissionstypes.ValueBundle, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*emissionstypes.GetNetworkInferencesAtBlockResponse, error) {
 			return node.Chain.EmissionsQueryClient.GetNetworkInferencesAtBlock(ctx, &emissionstypes.GetNetworkInferencesAtBlockRequest{
 				TopicId:                  topicId,

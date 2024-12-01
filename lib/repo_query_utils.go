@@ -3,7 +3,6 @@ package lib
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -14,7 +13,7 @@ import (
 func QueryDataWithRetry[T any](
 	ctx context.Context,
 	maxRetries int64,
-	delay time.Duration,
+	delaySeconds int64,
 	queryFunc func(context.Context, query.PageRequest) (T, error),
 	req query.PageRequest,
 	infoMsg string,
@@ -33,7 +32,9 @@ func QueryDataWithRetry[T any](
 		log.Error().Err(err).Msgf("Query failed, retrying... (Retry %d/%d): %s", retryCount, maxRetries, infoMsg)
 
 		// Wait for the uniform delay before retrying
-		time.Sleep(delay)
+		if DoneOrWait(ctx, delaySeconds) {
+			break
+		}
 	}
 
 	// All retries failed, return the last error
