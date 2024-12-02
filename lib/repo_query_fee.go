@@ -22,13 +22,12 @@ func (node *NodeConfig) UpdateGasPriceRoutine(ctx context.Context) {
 			log.Info().Msg("Updating fee price routine: terminating.")
 			return
 		default:
-			var err error
 			price, err := node.GetBaseFee(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("Error updating gas prices")
 			}
-			gasPrice = price
-			log.Debug().Float64("gasPrice", gasPrice).Msg("Updating fee price routine: updating value.")
+			SetGasPrice(price)
+			log.Debug().Float64("gasPrice", GetGasPrice()).Msg("Updating fee price routine: updating value.")
 			time.Sleep(time.Duration(node.Wallet.GasPriceUpdateInterval) * time.Second)
 		}
 	}

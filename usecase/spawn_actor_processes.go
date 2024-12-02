@@ -49,6 +49,13 @@ type ActorProcessParams[T lib.TopicActor] struct {
 func (suite *UseCaseSuite) Spawn(ctx context.Context) {
 	if suite.Node.Wallet.GasPrices == lib.AutoGasPrices {
 		log.Info().Msg("auto gas prices. Updating fee price routine: starting.")
+		price, err := suite.Node.GetBaseFee(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("Error updating gas prices in auto mode - RPC availability issue?")
+			return
+		}
+		lib.SetGasPrice(price)
+		// After intialization, start auto-update routine
 		go suite.Node.UpdateGasPriceRoutine(ctx)
 	} else {
 		price, err := strconv.ParseFloat(suite.Node.Wallet.GasPrices, 64)
