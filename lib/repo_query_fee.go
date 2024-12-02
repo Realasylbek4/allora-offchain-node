@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/cosmos/cosmos-sdk/types/query"
 	"github.com/rs/zerolog/log"
@@ -16,11 +15,11 @@ func (node *NodeConfig) GetBaseFee(ctx context.Context) (float64, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*feemarkettypes.GasPriceResponse, error) {
 			return node.Chain.FeeMarketQueryClient.GasPrice(ctx, &feemarkettypes.GasPriceRequest{Denom: node.Chain.DefaultBondDenom})
 		},
-		query.PageRequest{},
+		query.PageRequest{}, // nolint:exhaustruct
 		"get base fee",
 	)
 	if err != nil {
