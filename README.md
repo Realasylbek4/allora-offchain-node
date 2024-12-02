@@ -150,10 +150,7 @@ The wallet configuration is done in `config.json` under the `wallet` field.
 
 ### Gas and Fees
 
-- `gas` can be set to `auto` or a specific gas value. If set to `auto`, the node will automatically calculate the gas limit based on the estimated gas used by the transactions.
-- `gasAdjustment` is used to adjust the gas limit.
-- `gasPrices` can be set to `auto` or a specific gas price. If set to `auto`, the node will automatically calculate the gas price based on chain's feemarket-based gas prices. This is the recommended setting, since feemarket introduces variability in the gas price in the chain.
-- `maxFees` set the max fees that can be paid for a transaction. They are expressed numerically in `uallo`.
+Please see detailed information in [gas_and_fees.md](gas_and_fees.md).
 
 ### Error handling
 
