@@ -29,3 +29,8 @@ git config core.hooksPath .hooks/pre-commit
 This will enable the pre-commit hooks for the repository and ensure that
 all commits are checked for compliance with our formatter and other
 checks before they are accepted into the repository.
+
+
+The PRs need to pass a number of checks, including but not limited to:
+* `go test` for unit tests
+* `golangci-lint` to check the code for potential issues, as configured in `.golangci.yml`

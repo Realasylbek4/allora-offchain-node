@@ -8,6 +8,7 @@ import (
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosaccount"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
+	feemarkettypes "github.com/skip-mev/feemarket/x/feemarket/types"
 )
 
 const (
@@ -25,7 +26,7 @@ type WalletConfig struct {
 	AlloraHomeDir             string  // home directory for the allora keystore
 	Gas                       string  // gas to use for the allora client
 	GasAdjustment             float64 // gas adjustment to use for the allora client
-	GasPrices                 float64 // gas prices to use for the allora client - 0 for no fees
+	GasPrices                 string  // gas prices to use for the allora client - "auto" for no fees
 	MaxFees                   uint64  // max gas to use for the allora client
 	NodeRpc                   string  // rpc node for allora chain
 	MaxRetries                int64   // retry to get data from chain up to this many times per query or tx
@@ -43,6 +44,7 @@ type ChainConfig struct {
 	Client               *cosmosclient.Client
 	EmissionsQueryClient emissions.QueryServiceClient
 	BankQueryClient      bank.QueryClient
+	FeeMarketQueryClient feemarkettypes.QueryClient
 	DefaultBondDenom     string
 	AddressPrefix        string // prefix for the allora addresses
 }

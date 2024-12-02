@@ -278,7 +278,7 @@ func (a *AlloraAdapter) CanSourceGroundTruthAndComputeLoss() bool {
 
 func NewAlloraAdapter() *AlloraAdapter {
 	return &AlloraAdapter{
-		name: "api-worker-reputer",
+		name: "apiAdapter",
 	}
 }
 
