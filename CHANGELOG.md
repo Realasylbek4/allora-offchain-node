@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * [#89](https://github.com/allora-network/allora-offchain-node/pull/89) Added linter
 * [#92](https://github.com/allora-network/allora-offchain-node/pull/92) Context handling
 * [#91](https://github.com/allora-network/allora-offchain-node/pull/91) Add Feemarket support
+* [#94](https://github.com/allora-network/allora-offchain-node/pull/94) Gas price update interval
 
 ### Removed
 
