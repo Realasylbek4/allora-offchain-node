@@ -1,14 +1,6 @@
 package usecase
 
-import (
-	"time"
-
-	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
-)
-
-func (suite *UseCaseSuite) Wait(seconds int64) {
-	time.Sleep(time.Duration(seconds) * time.Second)
-}
+import emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 
 func IsEmpty(vb emissionstypes.ValueBundle) bool {
 	return vb.TopicId == 0 &&

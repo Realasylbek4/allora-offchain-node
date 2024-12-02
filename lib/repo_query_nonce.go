@@ -2,20 +2,17 @@ package lib
 
 import (
 	"context"
-	"time"
 
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
 )
 
 // Gets the latest open worker nonce for a given topic, with retries
-func (node *NodeConfig) GetLatestOpenWorkerNonceByTopicId(topicId emissionstypes.TopicId) (*emissionstypes.Nonce, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) GetLatestOpenWorkerNonceByTopicId(ctx context.Context, topicId emissionstypes.TopicId) (*emissionstypes.Nonce, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*emissionstypes.GetUnfulfilledWorkerNoncesResponse, error) {
 			return node.Chain.EmissionsQueryClient.GetUnfulfilledWorkerNonces(ctx, &emissionstypes.GetUnfulfilledWorkerNoncesRequest{
 				TopicId: topicId,
@@ -36,13 +33,11 @@ func (node *NodeConfig) GetLatestOpenWorkerNonceByTopicId(topicId emissionstypes
 }
 
 // Gets the oldest open reputer nonce for a given topic, with retries
-func (node *NodeConfig) GetOldestReputerNonceByTopicId(topicId emissionstypes.TopicId) (*emissionstypes.Nonce, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) GetOldestReputerNonceByTopicId(ctx context.Context, topicId emissionstypes.TopicId) (*emissionstypes.Nonce, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*emissionstypes.GetUnfulfilledReputerNoncesResponse, error) {
 			return node.Chain.EmissionsQueryClient.GetUnfulfilledReputerNonces(ctx, &emissionstypes.GetUnfulfilledReputerNoncesRequest{
 				TopicId: topicId,

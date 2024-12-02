@@ -33,9 +33,9 @@ type ActorProcessParams[T lib.TopicActor] struct {
 	// Configuration for the actor (Worker or Reputer)
 	Config T
 	// Function to process payloads (processWorkerPayload or processReputerPayload)
-	ProcessPayload func(T, int64, uint64) (int64, error)
+	ProcessPayload func(context.Context, T, int64, uint64) (int64, error)
 	// Function to get nonces (GetLatestOpenWorkerNonceByTopicId or GetOldestReputerNonceByTopicId)
-	GetNonce func(emissionstypes.TopicId) (*emissionstypes.Nonce, error)
+	GetNonce func(context.Context, emissionstypes.TopicId) (*emissionstypes.Nonce, error)
 	// Window length used to determine when we're near submission time
 	NearWindowLength int64
 	// Actual submission window length
@@ -44,7 +44,7 @@ type ActorProcessParams[T lib.TopicActor] struct {
 	ActorType string
 }
 
-func (suite *UseCaseSuite) Spawn() {
+func (suite *UseCaseSuite) Spawn(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	// Run worker process per topic
@@ -59,7 +59,7 @@ func (suite *UseCaseSuite) Spawn() {
 		wg.Add(1)
 		go func(worker lib.WorkerConfig) {
 			defer wg.Done()
-			suite.runWorkerProcess(worker)
+			suite.runWorkerProcess(ctx, worker)
 		}(worker)
 	}
 
@@ -75,7 +75,7 @@ func (suite *UseCaseSuite) Spawn() {
 		wg.Add(1)
 		go func(reputer lib.ReputerConfig) {
 			defer wg.Done()
-			suite.runReputerProcess(reputer)
+			suite.runReputerProcess(ctx, reputer)
 		}(reputer)
 	}
 
@@ -85,8 +85,8 @@ func (suite *UseCaseSuite) Spawn() {
 
 // Attempts to build and commit a worker payload for a given nonce
 // Returns the nonce height acted upon (the received one or the new one if any)
-func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestNonceHeightActedUpon int64, timeoutHeight uint64) (int64, error) {
-	latestOpenWorkerNonce, err := suite.Node.GetLatestOpenWorkerNonceByTopicId(worker.TopicId)
+func (suite *UseCaseSuite) processWorkerPayload(ctx context.Context, worker lib.WorkerConfig, latestNonceHeightActedUpon int64, timeoutHeight uint64) (int64, error) {
+	latestOpenWorkerNonce, err := suite.Node.GetLatestOpenWorkerNonceByTopicId(ctx, worker.TopicId)
 
 	if err != nil {
 		log.Warn().Err(err).Uint64("topicId", worker.TopicId).Msg("Error getting latest open worker nonce on topic - node availability issue?")
@@ -95,7 +95,7 @@ func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestN
 
 	if latestOpenWorkerNonce.BlockHeight > latestNonceHeightActedUpon {
 		// Check if worker can submit
-		isWhitelisted, err := suite.Node.CanSubmitWorker(worker.TopicId, suite.Node.Wallet.Address)
+		isWhitelisted, err := suite.Node.CanSubmitWorker(ctx, worker.TopicId, suite.Node.Wallet.Address)
 		if err != nil {
 			log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Failed to check if worker is whitelisted")
 			return latestNonceHeightActedUpon, err
@@ -107,7 +107,7 @@ func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestN
 
 		log.Debug().Uint64("topicId", worker.TopicId).Int64("BlockHeight", latestOpenWorkerNonce.BlockHeight).
 			Msg("Building and committing worker payload for topic")
-		err = suite.BuildCommitWorkerPayload(worker, latestOpenWorkerNonce, timeoutHeight)
+		err = suite.BuildCommitWorkerPayload(ctx, worker, latestOpenWorkerNonce, timeoutHeight)
 		if err != nil {
 			return latestNonceHeightActedUpon, errorsmod.Wrapf(err, "error building and committing worker payload for topic")
 		}
@@ -123,8 +123,8 @@ func (suite *UseCaseSuite) processWorkerPayload(worker lib.WorkerConfig, latestN
 	}
 }
 
-func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, latestNonceHeightActedUpon int64, timeoutHeight uint64) (int64, error) {
-	nonce, err := suite.Node.GetOldestReputerNonceByTopicId(reputer.TopicId)
+func (suite *UseCaseSuite) processReputerPayload(ctx context.Context, reputer lib.ReputerConfig, latestNonceHeightActedUpon int64, timeoutHeight uint64) (int64, error) {
+	nonce, err := suite.Node.GetOldestReputerNonceByTopicId(ctx, reputer.TopicId)
 
 	if err != nil {
 		log.Warn().Err(err).Uint64("topicId", reputer.TopicId).Msg("Error getting latest open reputer nonce on topic - node availability issue?")
@@ -133,7 +133,7 @@ func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, late
 
 	if nonce.BlockHeight > latestNonceHeightActedUpon {
 		// Check if reputer can submit
-		isWhitelisted, err := suite.Node.CanSubmitReputer(reputer.TopicId, suite.Node.Wallet.Address)
+		isWhitelisted, err := suite.Node.CanSubmitReputer(ctx, reputer.TopicId, suite.Node.Wallet.Address)
 		if err != nil {
 			log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to check if reputer is whitelisted")
 			return latestNonceHeightActedUpon, err
@@ -145,7 +145,7 @@ func (suite *UseCaseSuite) processReputerPayload(reputer lib.ReputerConfig, late
 
 		log.Debug().Uint64("topicId", reputer.TopicId).Int64("BlockHeight", nonce.BlockHeight).
 			Msg("Building and committing reputer payload for topic")
-		err = suite.BuildCommitReputerPayload(reputer, nonce.BlockHeight, timeoutHeight)
+		err = suite.BuildCommitReputerPayload(ctx, reputer, nonce.BlockHeight, timeoutHeight)
 		if err != nil {
 			return latestNonceHeightActedUpon, errorsmod.Wrapf(err, "error building and committing reputer payload for topic")
 		}
@@ -186,11 +186,11 @@ func generateRandomOffset(submissionWindow int64) int64 {
 }
 
 // Runs the worker process for a given worker config
-func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
+func (suite *UseCaseSuite) runWorkerProcess(ctx context.Context, worker lib.WorkerConfig) {
 	log.Info().Uint64("topicId", worker.TopicId).Msg("Running worker process for topic")
 
 	// Handle registration
-	registered := suite.Node.RegisterWorkerIdempotently(worker)
+	registered := suite.Node.RegisterWorkerIdempotently(ctx, worker)
 	if !registered {
 		log.Fatal().Uint64("topicId", worker.TopicId).Msg("Failed to register worker for topic, exiting")
 		return
@@ -198,7 +198,7 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 	log.Debug().Uint64("topicId", worker.TopicId).Msg("Worker registered")
 
 	// Using the helper function
-	topicInfo, err := queryTopicInfo(suite, worker)
+	topicInfo, err := queryTopicInfo(ctx, suite, worker)
 	if err != nil {
 		log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Failed to get topic info for worker")
 		return
@@ -214,7 +214,7 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 	}
 
 	// Check if worker is isWhitelisted
-	isWhitelisted, err := suite.Node.CanSubmitWorker(worker.TopicId, suite.Node.Wallet.Address)
+	isWhitelisted, err := suite.Node.CanSubmitWorker(ctx, worker.TopicId, suite.Node.Wallet.Address)
 	if err != nil {
 		log.Error().Err(err).Uint64("topicId", worker.TopicId).Msg("Failed to check if worker is whitelisted")
 		return
@@ -225,15 +225,15 @@ func (suite *UseCaseSuite) runWorkerProcess(worker lib.WorkerConfig) {
 	}
 
 	// Run the actor process
-	runActorProcess(suite, params)
+	runActorProcess(ctx, suite, params)
 }
 
 // Runs the reputer process for a given reputer config
-func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
+func (suite *UseCaseSuite) runReputerProcess(ctx context.Context, reputer lib.ReputerConfig) {
 	log.Debug().Uint64("topicId", reputer.TopicId).Msg("Running reputer process for topic")
 
 	// Handle registration and staking
-	registeredAndStaked := suite.Node.RegisterAndStakeReputerIdempotently(reputer)
+	registeredAndStaked := suite.Node.RegisterAndStakeReputerIdempotently(ctx, reputer)
 	if !registeredAndStaked {
 		log.Fatal().Uint64("topicId", reputer.TopicId).Msg("Failed to register or sufficiently stake reputer for topic")
 		return
@@ -241,7 +241,7 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 	log.Debug().Uint64("topicId", reputer.TopicId).Msg("Reputer registered and staked")
 
 	// Using the helper function
-	topicInfo, err := queryTopicInfo(suite, reputer)
+	topicInfo, err := queryTopicInfo(ctx, suite, reputer)
 	if err != nil {
 		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to get topic info for reputer")
 		return
@@ -257,7 +257,7 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 	}
 
 	// Check if reputer is isWhitelisted
-	isWhitelisted, err := suite.Node.CanSubmitReputer(reputer.TopicId, suite.Node.Wallet.Address)
+	isWhitelisted, err := suite.Node.CanSubmitReputer(ctx, reputer.TopicId, suite.Node.Wallet.Address)
 	if err != nil {
 		log.Error().Err(err).Uint64("topicId", reputer.TopicId).Msg("Failed to check if reputer is whitelisted")
 		return
@@ -268,19 +268,19 @@ func (suite *UseCaseSuite) runReputerProcess(reputer lib.ReputerConfig) {
 	}
 
 	// Run the actor process
-	runActorProcess(suite, params)
+	runActorProcess(ctx, suite, params)
 }
 
 // Function that runs the actor process for a given topic and actor type
 // This mechanism is used to handle the submission of payloads for both workers and reputers,
 // using ActorProcessParams to handle the different configurations and functions needed for each actor type
-func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessParams[T]) {
+func runActorProcess[T lib.TopicActor](ctx context.Context, suite *UseCaseSuite, params ActorProcessParams[T]) {
 	log.Debug().
 		Uint64("topicId", params.Config.GetTopicId()).
 		Str("actorType", params.ActorType).
 		Msg("Running actor process for topic")
 
-	topicInfo, err := queryTopicInfo(suite, params.Config)
+	topicInfo, err := queryTopicInfo(ctx, suite, params.Config)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -298,15 +298,17 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 	for {
 		log.Trace().Msg("Start iteration, querying latest block")
 		// Query the latest block
-		status, err := suite.Node.Chain.Client.Status(context.Background())
+		status, err := suite.Node.Chain.Client.Status(ctx)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to get status")
-			suite.Wait(WAIT_TIME_STATUS_CHECKS)
+			if lib.DoneOrWait(ctx, WAIT_TIME_STATUS_CHECKS) {
+				return
+			}
 			continue
 		}
 		currentBlockHeight = status.SyncInfo.LatestBlockHeight
 
-		topicInfo, err := queryTopicInfo(suite, params.Config)
+		topicInfo, err := queryTopicInfo(ctx, suite, params.Config)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -327,7 +329,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 			// timeoutHeight is one epoch length away
 			timeoutHeight := currentBlockHeight + epochLength
 
-			latestNonceHeightSentTxFor, err = params.ProcessPayload(params.Config, latestNonceHeightSentTxFor, uint64(timeoutHeight)) // nolint: gosec
+			latestNonceHeightSentTxFor, err = params.ProcessPayload(ctx, params.Config, latestNonceHeightSentTxFor, uint64(timeoutHeight)) // nolint: gosec
 			if err != nil {
 				log.Error().
 					Err(err).
@@ -350,7 +352,9 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 					Msg("Error calculating time distance to next epoch after sending tx - wait epochLength")
 				return
 			}
-			suite.Wait(waitingTimeInSeconds)
+			if lib.DoneOrWait(ctx, waitingTimeInSeconds) {
+				return
+			}
 			continue
 		}
 
@@ -363,10 +367,12 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 			Int64("timeoutHeight", timeoutHeight).
 			Msg("Epoch info")
 
+		var waitingTimeInSeconds int64
+
 		// Check if block is within the submission window
 		if currentBlockHeight-epochLastEnded <= params.SubmissionWindowLength {
 			// Within the submission window, attempt to process payload
-			latestNonceHeightSentTxFor, err = params.ProcessPayload(params.Config, latestNonceHeightSentTxFor, uint64(timeoutHeight)) // nolint: gosec
+			latestNonceHeightSentTxFor, err = params.ProcessPayload(ctx, params.Config, latestNonceHeightSentTxFor, uint64(timeoutHeight)) // nolint: gosec
 			if err != nil {
 				log.Error().
 					Err(err).
@@ -386,7 +392,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 				distanceUntilNextEpoch = params.SubmissionWindowLength
 			}
 
-			waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
+			waitingTimeInSeconds, err = calculateTimeDistanceInSeconds(
 				distanceUntilNextEpoch,
 				suite.Node.Wallet.BlockDurationEstimated,
 				suite.Node.Wallet.WindowCorrectionFactor,
@@ -407,10 +413,9 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 				Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
 				Int64("waitingTimeInSeconds", waitingTimeInSeconds).
 				Msg("Waiting until the submission window opens after sending")
-			suite.Wait(waitingTimeInSeconds)
 		} else if currentBlockHeight > epochEnd {
 			// Inconsistent topic data, wait until the next epoch
-			waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
+			waitingTimeInSeconds, err = calculateTimeDistanceInSeconds(
 				epochLength,
 				suite.Node.Wallet.BlockDurationEstimated,
 				NEARNESS_CORRECTION_FACTOR,
@@ -430,7 +435,6 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 				Int64("currentBlockHeight", currentBlockHeight).
 				Int64("epochEnd", epochEnd).
 				Msg("Current block height is greater than next epoch length, is topic inactive? Waiting seconds...")
-			suite.Wait(waitingTimeInSeconds)
 		} else {
 			distanceUntilNextEpoch := epochEnd - currentBlockHeight
 			if distanceUntilNextEpoch <= minBlocksToCheck {
@@ -438,7 +442,7 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 				// Introduces a random offset to avoid thundering herd problem
 				offset := generateRandomOffset(params.SubmissionWindowLength)
 				closeBlockDistance := distanceUntilNextEpoch + offset
-				waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
+				waitingTimeInSeconds, err = calculateTimeDistanceInSeconds(
 					closeBlockDistance,
 					suite.Node.Wallet.BlockDurationEstimated,
 					NEARNESS_CORRECTION_FACTOR,
@@ -461,10 +465,9 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 					Int64("closeBlockDistance", closeBlockDistance).
 					Int64("waitingTimeInSeconds", waitingTimeInSeconds).
 					Msg("Close to the window, waiting until next submission window")
-				suite.Wait(waitingTimeInSeconds)
 			} else {
 				// Far distance, bigger waits until the submission window opens
-				waitingTimeInSeconds, err := calculateTimeDistanceInSeconds(
+				waitingTimeInSeconds, err = calculateTimeDistanceInSeconds(
 					distanceUntilNextEpoch,
 					suite.Node.Wallet.BlockDurationEstimated,
 					suite.Node.Wallet.WindowCorrectionFactor,
@@ -484,8 +487,10 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 					Int64("distanceUntilNextEpoch", distanceUntilNextEpoch).
 					Int64("waitingTimeInSeconds", waitingTimeInSeconds).
 					Msg("Waiting until the submission window opens - far distance")
-				suite.Wait(waitingTimeInSeconds)
 			}
+		}
+		if lib.DoneOrWait(ctx, waitingTimeInSeconds) {
+			return
 		}
 	}
 }
@@ -493,10 +498,11 @@ func runActorProcess[T lib.TopicActor](suite *UseCaseSuite, params ActorProcessP
 // Queries the topic info for a given actor type and wallet params from suite
 // Wrapper over NodeConfig.GetTopicInfo() with generic config type
 func queryTopicInfo[T lib.TopicActor](
+	ctx context.Context,
 	suite *UseCaseSuite,
 	config T,
 ) (*emissionstypes.Topic, error) {
-	topicInfo, err := suite.Node.GetTopicInfo(config.GetTopicId())
+	topicInfo, err := suite.Node.GetTopicInfo(ctx, config.GetTopicId())
 	if err != nil {
 		return nil, errorsmod.Wrapf(err, "failed to get topic info")
 	}

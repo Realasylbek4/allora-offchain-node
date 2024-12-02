@@ -2,20 +2,17 @@ package lib
 
 import (
 	"context"
-	"time"
 
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
 )
 
 // Checks if an worker address is whitelisted for a given topic
-func (node *NodeConfig) IsWorkerWhitelisted(topicId emissionstypes.TopicId, address string) (bool, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) IsWorkerWhitelisted(ctx context.Context, topicId emissionstypes.TopicId, address string) (bool, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*emissionstypes.IsWhitelistedTopicWorkerResponse, error) {
 			return node.Chain.EmissionsQueryClient.IsWhitelistedTopicWorker(ctx, &emissionstypes.IsWhitelistedTopicWorkerRequest{
 				TopicId: topicId,
@@ -33,13 +30,11 @@ func (node *NodeConfig) IsWorkerWhitelisted(topicId emissionstypes.TopicId, addr
 }
 
 // Checks if a reputer address is whitelisted for a given topic
-func (node *NodeConfig) IsReputerWhitelisted(topicId emissionstypes.TopicId, address string) (bool, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) IsReputerWhitelisted(ctx context.Context, topicId emissionstypes.TopicId, address string) (bool, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*emissionstypes.IsWhitelistedTopicReputerResponse, error) {
 			return node.Chain.EmissionsQueryClient.IsWhitelistedTopicReputer(ctx, &emissionstypes.IsWhitelistedTopicReputerRequest{
 				TopicId: topicId,
@@ -57,13 +52,11 @@ func (node *NodeConfig) IsReputerWhitelisted(topicId emissionstypes.TopicId, add
 }
 
 // Checks if an address is whitelisted as a global actor
-func (node *NodeConfig) IsWhitelistedGlobalActor(address string) (bool, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) IsWhitelistedGlobalActor(ctx context.Context, address string) (bool, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*emissionstypes.IsWhitelistedGlobalActorResponse, error) {
 			return node.Chain.EmissionsQueryClient.IsWhitelistedGlobalActor(ctx, &emissionstypes.IsWhitelistedGlobalActorRequest{
 				Address: address,
@@ -80,9 +73,9 @@ func (node *NodeConfig) IsWhitelistedGlobalActor(address string) (bool, error) {
 }
 
 // Checks if a worker can submit to a given topic
-func (node *NodeConfig) CanSubmitWorker(topicId emissionstypes.TopicId, address string) (bool, error) {
+func (node *NodeConfig) CanSubmitWorker(ctx context.Context, topicId emissionstypes.TopicId, address string) (bool, error) {
 	// Check local whitelist
-	isWhitelisted, err := node.IsWorkerWhitelisted(topicId, address)
+	isWhitelisted, err := node.IsWorkerWhitelisted(ctx, topicId, address)
 	if err != nil {
 		return false, err
 	}
@@ -91,7 +84,7 @@ func (node *NodeConfig) CanSubmitWorker(topicId emissionstypes.TopicId, address 
 	}
 
 	// Check global whitelist
-	isGlobalActorWhitelisted, err := node.IsWhitelistedGlobalActor(address)
+	isGlobalActorWhitelisted, err := node.IsWhitelistedGlobalActor(ctx, address)
 	if err != nil {
 		return false, err
 	}
@@ -100,9 +93,9 @@ func (node *NodeConfig) CanSubmitWorker(topicId emissionstypes.TopicId, address 
 }
 
 // Checks if a reputer can submit to a given topic
-func (node *NodeConfig) CanSubmitReputer(topicId emissionstypes.TopicId, address string) (bool, error) {
+func (node *NodeConfig) CanSubmitReputer(ctx context.Context, topicId emissionstypes.TopicId, address string) (bool, error) {
 	// Check local whitelist
-	isWhitelisted, err := node.IsReputerWhitelisted(topicId, address)
+	isWhitelisted, err := node.IsReputerWhitelisted(ctx, topicId, address)
 	if err != nil {
 		return false, err
 	}
@@ -111,7 +104,7 @@ func (node *NodeConfig) CanSubmitReputer(topicId emissionstypes.TopicId, address
 	}
 
 	// Check global whitelist
-	isGlobalActorWhitelisted, err := node.IsWhitelistedGlobalActor(address)
+	isGlobalActorWhitelisted, err := node.IsWhitelistedGlobalActor(ctx, address)
 	if err != nil {
 		return false, err
 	}

@@ -3,20 +3,17 @@ package lib
 import (
 	"context"
 	"errors"
-	"time"
 
 	emissionstypes "github.com/allora-network/allora-chain/x/emissions/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
 )
 
 // Gets topic info for a given topic ID, with retries
-func (node *NodeConfig) GetTopicInfo(topicId emissionstypes.TopicId) (*emissionstypes.Topic, error) {
-	ctx := context.Background()
-
+func (node *NodeConfig) GetTopicInfo(ctx context.Context, topicId emissionstypes.TopicId) (*emissionstypes.Topic, error) {
 	resp, err := QueryDataWithRetry(
 		ctx,
 		node.Wallet.MaxRetries,
-		time.Duration(node.Wallet.RetryDelay)*time.Second,
+		node.Wallet.RetryDelay,
 		func(ctx context.Context, req query.PageRequest) (*emissionstypes.GetTopicResponse, error) {
 			return node.Chain.EmissionsQueryClient.GetTopic(ctx, &emissionstypes.GetTopicRequest{
 				TopicId: topicId,
