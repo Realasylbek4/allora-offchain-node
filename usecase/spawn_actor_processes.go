@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -44,8 +45,31 @@ type ActorProcessParams[T lib.TopicActor] struct {
 	ActorType string
 }
 
+// Spawns the actor processes and any associated non-essential routines
 func (suite *UseCaseSuite) Spawn(ctx context.Context) {
+	if suite.Node.Wallet.GasPrices == lib.AutoGasPrices {
+		log.Info().Msg("auto gas prices. Updating fee price routine: starting.")
+		price, err := suite.Node.GetBaseFee(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("Error updating gas prices in auto mode - RPC availability issue?")
+			return
+		}
+		lib.SetGasPrice(price)
+		// After intialization, start auto-update routine
+		go suite.Node.UpdateGasPriceRoutine(ctx)
+	} else {
+		price, err := strconv.ParseFloat(suite.Node.Wallet.GasPrices, 64)
+		if err != nil {
+			log.Error().Err(err).Msg("Invalid gas prices format")
+			return
+		} else {
+			log.Debug().Float64("gasPrice", price).Msg("Setting gas prices manually")
+			lib.SetGasPrice(price)
+		}
+	}
+
 	var wg sync.WaitGroup
+	essentialDone := make(chan struct{}) // Channel for essential routines to signal when they are done
 
 	// Run worker process per topic
 	alreadyStartedWorkerForTopic := make(map[emissionstypes.TopicId]bool)
@@ -60,6 +84,7 @@ func (suite *UseCaseSuite) Spawn(ctx context.Context) {
 		go func(worker lib.WorkerConfig) {
 			defer wg.Done()
 			suite.runWorkerProcess(ctx, worker)
+			log.Error().Uint64("topicId", worker.TopicId).Msg("Worker process finished")
 		}(worker)
 	}
 
@@ -76,11 +101,17 @@ func (suite *UseCaseSuite) Spawn(ctx context.Context) {
 		go func(reputer lib.ReputerConfig) {
 			defer wg.Done()
 			suite.runReputerProcess(ctx, reputer)
+			log.Error().Uint64("topicId", reputer.TopicId).Msg("Reputer process finished")
 		}(reputer)
 	}
 
-	// Wait for all goroutines to finish
-	wg.Wait()
+	// Wait for all essential routines to finish
+	go func() {
+		wg.Wait()
+		close(essentialDone)
+	}()
+
+	<-essentialDone // Block until all essential routines are done
 }
 
 // Attempts to build and commit a worker payload for a given nonce

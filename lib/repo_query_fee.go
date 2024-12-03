@@ -4,11 +4,44 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/cosmos/cosmos-sdk/types/query"
 	"github.com/rs/zerolog/log"
 	feemarkettypes "github.com/skip-mev/feemarket/x/feemarket/types"
 )
+
+// Keeps track of the current gas price
+var gasPrice float64 = 0
+
+// UpdateGasPriceRoutine continuously updates the gas price at a specified interval
+func (node *NodeConfig) UpdateGasPriceRoutine(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info().Msg("Updating fee price routine: terminating.")
+			return
+		default:
+			price, err := node.GetBaseFee(ctx)
+			if err != nil {
+				log.Error().Err(err).Msg("Error updating gas prices")
+			}
+			SetGasPrice(price)
+			log.Debug().Float64("gasPrice", GetGasPrice()).Msg("Updating fee price routine: updating value.")
+			time.Sleep(time.Duration(node.Wallet.GasPriceUpdateInterval) * time.Second)
+		}
+	}
+}
+
+// GetGasPrice returns the current gas price
+func GetGasPrice() float64 {
+	return gasPrice
+}
+
+// SetGasPrice sets the current gas price
+func SetGasPrice(price float64) {
+	gasPrice = price
+}
 
 // GetBaseFee queries the current base fee from the feemarket module
 func (node *NodeConfig) GetBaseFee(ctx context.Context) (float64, error) {

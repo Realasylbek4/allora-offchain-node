@@ -159,28 +159,14 @@ func processError(ctx context.Context, err error, infoMsg string, retryCount int
 	return ERROR_PROCESSING_ERROR, errorsmod.Wrapf(err, "failed to process error")
 }
 
-// Helper function to get gas prices either from config or chain
-func (node *NodeConfig) getGasPrices(ctx context.Context) (float64, error) {
-	if node.Wallet.GasPrices == "auto" {
-		return node.GetBaseFee(ctx)
-	}
-
-	gasPrices, err := strconv.ParseFloat(node.Wallet.GasPrices, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid gas prices format: %w", err)
-	}
-	return gasPrices, nil
-}
-
 // SendDataWithRetry attempts to send data, handling retries, with fee awareness.
 // Custom handling for different errors.
 func (node *NodeConfig) SendDataWithRetry(ctx context.Context, req sdktypes.Msg, infoMsg string, timeoutHeight uint64) (*cosmosclient.Response, error) {
 	var txResp *cosmosclient.Response
 	// Excess fees correction factor translated to fees using configured gas prices
-	gasPrices, err := node.getGasPrices(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get gas prices: %w", err)
-	}
+	// This value is updated by the fee price update routine - making copy for consistency within method
+	gasPrices := GetGasPrice()
+
 	excessFactorFees := float64(EXCESS_CORRECTION_IN_GAS) * gasPrices
 	// Keep track of how many times fees need to be recalculated to avoid missing fee info between errors
 	recalculateFees := 1

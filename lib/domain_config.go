@@ -14,8 +14,10 @@ import (
 const (
 	WindowCorrectionFactorSuggestedMin = 0.5
 	BlockDurationEstimatedMin          = 1.0
+	GasPriceUpdateIntervalMin          = 5
 	RetryDelayMin                      = 1
 	AccountSequenceRetryDelayMin       = 1
+	AutoGasPrices                      = "auto"
 )
 
 // Properties manually provided by the user as part of UserConfig
@@ -27,6 +29,7 @@ type WalletConfig struct {
 	Gas                       string  // gas to use for the allora client
 	GasAdjustment             float64 // gas adjustment to use for the allora client
 	GasPrices                 string  // gas prices to use for the allora client - "auto" for no fees
+	GasPriceUpdateInterval    int64   // number of seconds to wait between updates to the gas price
 	MaxFees                   uint64  // max gas to use for the allora client
 	NodeRpc                   string  // rpc node for allora chain
 	MaxRetries                int64   // retry to get data from chain up to this many times per query or tx
@@ -165,6 +168,9 @@ func (c *UserConfig) ValidateWalletConfig() error {
 	}
 	if c.Wallet.AccountSequenceRetryDelay < AccountSequenceRetryDelayMin {
 		return fmt.Errorf("account sequence retry delay lower than the minimum: %d < %d", c.Wallet.AccountSequenceRetryDelay, AccountSequenceRetryDelayMin)
+	}
+	if c.Wallet.GasPrices == AutoGasPrices && c.Wallet.GasPriceUpdateInterval < GasPriceUpdateIntervalMin {
+		return fmt.Errorf("gas price update interval (in 'auto' mode)lower than the minimum: %d < %d", c.Wallet.GasPriceUpdateInterval, GasPriceUpdateIntervalMin)
 	}
 
 	return nil
