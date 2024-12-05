@@ -11,7 +11,7 @@ toolchain go1.22.9
 require (
 	cosmossdk.io/errors v1.0.1
 	cosmossdk.io/math v1.4.0
-	github.com/allora-network/allora-chain v0.6.1-0.20241125235711-96936db717d8
+	github.com/allora-network/allora-chain v0.7.0
 	github.com/cosmos/cosmos-sdk v0.50.10
 	github.com/ignite/cli/v28 v28.5.3
 	github.com/joho/godotenv v1.5.1
@@ -167,5 +167,3 @@ require (
 	pgregory.net/rapid v1.1.0 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-// replace github.com/skip-mev/feemarket => /home/diego/workspace-general/feemarket
