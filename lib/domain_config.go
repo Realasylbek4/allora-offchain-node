@@ -25,19 +25,19 @@ type WalletConfig struct {
 	Address                   string // will be overwritten by the keystore. This is the 1 value that is auto-generated in this struct
 	AddressKeyName            string // load a address by key from the keystore
 	AddressRestoreMnemonic    string
-	AlloraHomeDir             string  // home directory for the allora keystore
-	Gas                       string  // gas to use for the allora client
-	GasAdjustment             float64 // gas adjustment to use for the allora client
-	GasPrices                 string  // gas prices to use for the allora client - "auto" for no fees
-	GasPriceUpdateInterval    int64   // number of seconds to wait between updates to the gas price
-	MaxFees                   uint64  // max gas to use for the allora client
-	NodeRpc                   string  // rpc node for allora chain
-	MaxRetries                int64   // retry to get data from chain up to this many times per query or tx
-	RetryDelay                int64   // number of seconds to wait between retries (general case)
-	AccountSequenceRetryDelay int64   // number of seconds to wait between retries in case of account sequence error
-	SubmitTx                  bool    // useful for dev/testing. set to false to run in dry-run processes without committing to the chain
-	BlockDurationEstimated    float64 // estimated average block duration in seconds
-	WindowCorrectionFactor    float64 // correction factor for the time estimation, suggested range 0.7-0.9.
+	AlloraHomeDir             string   // home directory for the allora keystore
+	Gas                       string   // gas to use for the allora client
+	GasAdjustment             float64  // gas adjustment to use for the allora client
+	GasPrices                 string   // gas prices to use for the allora client - "auto" for no fees
+	GasPriceUpdateInterval    int64    // number of seconds to wait between updates to the gas price
+	MaxFees                   uint64   // max gas to use for the allora client
+	NodeRPCs                  []string // rpc nodes for allora chain
+	MaxRetries                int64    // retry to get data from chain up to this many times per query or tx
+	RetryDelay                int64    // number of seconds to wait between retries (general case)
+	AccountSequenceRetryDelay int64    // number of seconds to wait between retries in case of account sequence error
+	SubmitTx                  bool     // useful for dev/testing. set to false to run in dry-run processes without committing to the chain
+	BlockDurationEstimated    float64  // estimated average block duration in seconds
+	WindowCorrectionFactor    float64  // correction factor for the time estimation, suggested range 0.7-0.9.
 }
 
 // Properties auto-generated based on what the user has provided in WalletConfig fields of UserConfig

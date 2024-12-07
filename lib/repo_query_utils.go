@@ -2,7 +2,6 @@ package lib
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog/log"
 
@@ -31,6 +30,10 @@ func QueryDataWithRetry[T any](
 		// Log the error for each retry.
 		log.Error().Err(err).Msgf("Query failed, retrying... (Retry %d/%d): %s", retryCount, maxRetries, infoMsg)
 
+		if IsErrorSwitchingNode(err) {
+			return result, err
+		}
+
 		// Wait for the uniform delay before retrying
 		if DoneOrWait(ctx, delaySeconds) {
 			break
@@ -38,5 +41,5 @@ func QueryDataWithRetry[T any](
 	}
 
 	// All retries failed, return the last error
-	return result, fmt.Errorf("query failed after %d retries: %w", maxRetries, err)
+	return result, err
 }

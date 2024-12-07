@@ -17,7 +17,7 @@ import (
 	feemarkettypes "github.com/skip-mev/feemarket/x/feemarket/types"
 )
 
-func getAlloraClient(config *UserConfig) (*cosmosclient.Client, error) {
+func getAlloraClient(config *UserConfig, rpc string) (*cosmosclient.Client, error) {
 	// create a allora client instance
 	ctx := context.Background()
 	userHomeDir, _ := os.UserHomeDir()
@@ -38,7 +38,7 @@ func getAlloraClient(config *UserConfig) (*cosmosclient.Client, error) {
 	}
 
 	client, err := cosmosclient.New(ctx,
-		cosmosclient.WithNodeAddress(config.Wallet.NodeRpc),
+		cosmosclient.WithNodeAddress(rpc),
 		cosmosclient.WithAddressPrefix(ADDRESS_PREFIX),
 		cosmosclient.WithHome(alloraClientHome),
 		cosmosclient.WithGas(config.Wallet.Gas),
@@ -52,8 +52,8 @@ func getAlloraClient(config *UserConfig) (*cosmosclient.Client, error) {
 	return &client, nil
 }
 
-func (c *UserConfig) GenerateNodeConfig() (*NodeConfig, error) {
-	client, err := getAlloraClient(c)
+func (c *UserConfig) GenerateNodeConfig(rpc string) (*NodeConfig, error) {
+	client, err := getAlloraClient(c, rpc)
 	if err != nil {
 		c.Wallet.SubmitTx = false
 		return nil, err
